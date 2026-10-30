@@ -1,0 +1,36 @@
+name: Android APK
+on:
+  push:
+    branches: [build/android-apk]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci --no-audit --no-fund
+      - name: Install native tools
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -1)
+          "$SDKMANAGER" 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+      - name: Build sideload APK (debug signing, bundled JavaScript)
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon --max-workers=2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AlzheFi-arm64-demo-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 7
