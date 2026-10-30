@@ -23,7 +23,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: npm ci --no-audit --no-fund
       - name: Install native tools
-        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -1)
+          "$SDKMANAGER" 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
       - name: Build sideload APK (debug signing, bundled JavaScript)
         working-directory: android
         run: chmod +x gradlew && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon --max-workers=2
