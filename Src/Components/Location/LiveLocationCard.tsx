@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { apiService } from '../../Services/apiService';
-import { LiveLocation } from '../../Types';
+import { LiveLocation, Zone } from '../../Types';
+import { layoutRadar } from './radarGeometry';
 import { YELLOW, DARK, MUTED, BORDER, DANGER } from '../CareLinks/theme';
 
 /** Test-only poll interval while the card is mounted. Not a guarantee of achieved GPS updates. */
@@ -21,11 +22,13 @@ export default function LiveLocationCard({ patientId }: { patientId: string }) {
   const [loc, setLoc] = useState<LiveLocation | null>(null);
   const [err, setErr] = useState(false);
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  const [zone, setZone] = useState<Zone | null>(null);
   const alive = useRef(true);
 
   useEffect(() => {
     alive.current = true;
-    setLoc(null);
+    setLoc(null); setZone(null);
+    apiService.getZone(patientId).then(z => { if (alive.current) setZone(z); }).catch(() => {});
     const tick = async () => {
       try {
         const r = await apiService.getLiveLocation(patientId);
@@ -45,6 +48,7 @@ export default function LiveLocationCard({ patientId }: { patientId: string }) {
       {!err && loc?.status === 'live' && (
         <>
           <Text style={s.live}>Updated {ago(loc.ageMs)}</Text>
+          <Radar loc={loc} zone={zone} />
           <Text style={s.coord}>{loc.lat.toFixed(5)}, {loc.lon.toFixed(5)} (accuracy about {Math.round(loc.accuracyM)} m)</Text>
           <TouchableOpacity style={s.btn} onPress={() => Linking.openURL(`geo:${loc.lat},${loc.lon}?q=${loc.lat},${loc.lon}`)}>
             <Text style={s.btnText}>Open in Maps</Text>
@@ -68,4 +72,34 @@ const s = StyleSheet.create({
   muted: { color: MUTED, fontSize: 12, marginTop: 4 },
   btn: { marginTop: 6, backgroundColor: YELLOW, borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
   btnText: { color: DARK, fontWeight: '700' },
+});
+
+const SIZE = 220;
+/**
+ * In-app position view with no map tiles: the safe area, the patient and an accuracy ring, drawn locally.
+ * No coordinates leave the app for a third-party map service. It is not a street map.
+ */
+function Radar({ loc, zone }: { loc: Extract<LiveLocation, { status: 'live' }>; zone: Zone | null }) {
+  const l = layoutRadar({ lat: loc.lat, lon: loc.lon, accuracyM: loc.accuracyM }, zone, SIZE);
+  const out = l.patientOutside === true;
+  return (
+    <View style={{ alignItems: 'center', marginVertical: 8 }}>
+      <View style={[r.box, { width: SIZE, height: SIZE }]}>
+        {l.zone && <View style={[r.zone, { left: l.zone.cx - l.zone.r, top: l.zone.cy - l.zone.r, width: l.zone.r * 2, height: l.zone.r * 2, borderRadius: l.zone.r, borderColor: out ? DANGER : '#16A34A' }]} />}
+        <View style={[r.acc, { left: l.patient.x - l.patient.accR, top: l.patient.y - l.patient.accR, width: l.patient.accR * 2, height: l.patient.accR * 2, borderRadius: l.patient.accR }]} />
+        <View style={[r.dot, { left: l.patient.x - 6, top: l.patient.y - 6, backgroundColor: out ? DANGER : DARK }]} />
+        <Text style={r.n}>N</Text>
+      </View>
+      <Text style={s.muted}>
+        {l.patientOutside === null ? 'No safe area set.' : out ? 'Outside the safe area.' : 'Inside the safe area.'}  Bar: {l.scaleLabel}. Not a street map.
+      </Text>
+    </View>
+  );
+}
+const r = StyleSheet.create({
+  box: { backgroundColor: '#F5F5F4', borderWidth: 1, borderColor: BORDER, borderRadius: 8, overflow: 'hidden' },
+  zone: { position: 'absolute', borderWidth: 2, backgroundColor: 'rgba(22,163,74,0.08)' },
+  acc: { position: 'absolute', backgroundColor: 'rgba(37,99,235,0.15)' },
+  dot: { position: 'absolute', width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#fff' },
+  n: { position: 'absolute', top: 4, alignSelf: 'center', left: SIZE / 2 - 4, fontWeight: '700', color: MUTED, fontSize: 11 },
 });

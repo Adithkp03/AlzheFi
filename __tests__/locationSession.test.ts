@@ -9,31 +9,46 @@ function mk(grant = true) {
     now: () => clock,
     getPushToken: async () => token,
     deletePushToken: async () => { log.push('deviceTokenDeleted'); },
-    registerToken: async t => { log.push('reg:' + t); },
-    unregisterToken: async t => { log.push('unreg:' + t); },
-    sendFix: async f => { log.push('fix:' + f.lat); },
-    watch: async onFix => { emit = onFix; log.push('watch'); return () => { emit = null; log.push('unwatch'); }; },
+    registerToken: async (t: string) => { log.push('reg:' + t); },
+    unregisterToken: async (t: string) => { log.push('unreg:' + t); },
+    sendFix: async (f: Fix) => { log.push('fix:' + f.lat); },
+    watch: async (onFix: (f: Fix) => void) => { emit = onFix; log.push('watch'); return () => { emit = null; log.push('unwatch'); }; },
     startForeground: async () => { log.push('fgOn'); },
     stopForeground: async () => { log.push('fgOff'); },
-    hasActiveGrant: async () => grant,
+    shouldCapture: async () => grant,
   } as any;
   return { d, log, tick: (ms: number) => { clock += ms; }, emit: (f: Fix) => emit?.(f), setToken: (t: string) => { token = t; }, hasWatch: () => emit !== null };
 }
 const F = (lat: number): Fix => ({ lat, lon: 0, accuracyM: 5, recordedAt: 0 });
-const flush = () => new Promise(r => setImmediate(r));
+const flush = () => new Promise<void>(r => setImmediate(() => r()));
 
-test('patient with a grant starts capture; caregiver never captures', async () => {
+test('patient with a grant starts capture; caregiver captures only while their own switch is on', async () => {
   const p = mk(); const s = new LocationSession(p.d);
   await s.setOwner('pat', 'patient');
   expect(s.capturing).toBe(true);
-  const c = mk(); const s2 = new LocationSession(c.d);
+  const off = mk(); off.d.shouldCapture = async () => false;
+  const s2 = new LocationSession(off.d);
   await s2.setOwner('cg', 'caregiver');
   expect(s2.capturing).toBe(false);
-  expect(c.log).toContain('reg:tok-A');
+  expect(off.log).toContain('reg:tok-A');
+  const on = mk(); const s3 = new LocationSession(on.d);
+  await s3.setOwner('cg', 'caregiver');
+  expect(s3.capturing).toBe(true);
+  on.emit(F(5)); await flush();
+  expect(on.log).toContain('fix:5');
+  await s3.setOwner(null, null);                          // logout: caregiver capture stops too
+  expect(s3.capturing).toBe(false);
+  expect(on.log).toEqual(expect.arrayContaining(['unwatch', 'fgOff', 'unreg:tok-A']));
+});
+
+test('role-aware switch: shouldCapture receives the owner role', async () => {
+  const p = mk(); const seen: string[] = []; p.d.shouldCapture = async r => { seen.push(r); return false; };
+  await new LocationSession(p.d).setOwner('cg', 'caregiver');
+  expect(seen).toEqual(['caregiver']);
 });
 
 test('no grant, no capture; capture starts when a grant appears and stops when all are revoked', async () => {
-  let grant = false; const p = mk(); p.d.hasActiveGrant = async () => grant;
+  let grant = false; const p = mk(); p.d.shouldCapture = async () => grant;
   const s = new LocationSession(p.d);
   await s.setOwner('pat', 'patient'); expect(s.capturing).toBe(false);
   grant = true; await s.refreshCapture(); expect(s.capturing).toBe(true);
@@ -67,12 +82,12 @@ test('account switch: old account capture and token are gone before the new acco
   const i = (x: string) => p.log.indexOf(x);
   expect(i('unwatch')).toBeLessThan(i('reg:tok-B'));
   expect(i('unreg:tok-A')).toBeLessThan(i('reg:tok-B'));
-  expect(s.capturing).toBe(false); expect(s.owner).toBe('cg');
+  expect(s.owner).toBe('cg'); expect(p.log.filter(x => x === 'watch')).toHaveLength(2);   // new owner has their own fresh watch
 });
 
 test('a fix delivered by the OS after teardown is never uploaded under the next owner', async () => {
   const p = mk(); let cb: ((f: Fix) => void) | null = null;
-  const orig = p.d.watch; p.d.watch = async (on, er) => { cb = on; return orig(on, er); };
+  const orig = p.d.watch; p.d.watch = async (on, er) => { cb = cb ?? on; return orig(on, er); };
   const s = new LocationSession(p.d);
   await s.setOwner('pat', 'patient');
   await s.setOwner('cg', 'caregiver');

@@ -22,13 +22,14 @@ export interface SessionDeps {
   watch(onFix: (f: Fix) => void, onError: (e: unknown) => void): Promise<() => void>;
   startForeground(): Promise<void>;
   stopForeground(): Promise<void>;
-  /** true when the patient has at least one active per-caregiver grant. */
-  hasActiveGrant(): Promise<boolean>;
+  /** patient: at least one active per-caregiver grant. caregiver: own explicit 'share my location for nearby alerts' switch is on. */
+  shouldCapture(role: 'patient' | 'caregiver'): Promise<boolean>;
   now(): number;
 }
 
 export class LocationSession {
   private ownerId: string | null = null;
+  private role: 'patient' | 'caregiver' | null = null;
   private stopWatch: (() => void) | null = null;
   private lastUpload = 0;
   private lastToken: string | null = null;
@@ -43,22 +44,22 @@ export class LocationSession {
     if (userId === this.ownerId) return;
     await this.teardown();
     const g = ++this.gen;
-    this.ownerId = userId;
+    this.ownerId = userId; this.role = role;
     if (!userId) return;
     try {
       const t = await this.d.getPushToken();
       if (g !== this.gen) return;
       if (t) { await this.d.registerToken(t); this.lastToken = t; }
     } catch { /* push is best effort */ }
-    if (role === 'patient') await this.refreshCapture();
+    if (role) await this.refreshCapture();
   }
 
   /** Start or stop capture to match the patient's grants. Sharing stays on until the patient turns it off. */
   async refreshCapture(): Promise<void> {
     const g = this.gen; const owner = this.ownerId;
-    if (!owner) return;
+    if (!owner || !this.role) return;
     let want = false;
-    try { want = await this.d.hasActiveGrant(); } catch { return; }
+    try { want = await this.d.shouldCapture(this.role); } catch { return; }
     if (g !== this.gen) return;
     if (want && !this.stopWatch) {
       await this.d.startForeground();
@@ -90,6 +91,6 @@ export class LocationSession {
     const t = this.lastToken; this.lastToken = null; this.lastUpload = 0;
     try { if (t) await this.d.unregisterToken(t); } catch { /* still delete device token below */ }
     try { await this.d.deletePushToken(); } catch { /* ignore */ }
-    this.ownerId = null;
+    this.ownerId = null; this.role = null;
   }
 }

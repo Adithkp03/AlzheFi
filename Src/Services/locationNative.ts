@@ -27,16 +27,17 @@ const deps: SessionDeps = {
   registerToken: t => apiService.registerDeviceToken(t),
   unregisterToken: t => apiService.removeDeviceToken(t),
   sendFix: f => apiService.sendLocationFix(f),
-  async hasActiveGrant() {
+  async shouldCapture(role) {
     const st = await apiService.getSharingStatus();
-    return st.role === 'patient' && st.caregivers.some(c => c.sharing);
+    if (role === 'patient') return st.role === 'patient' && st.caregivers.some(c => c.sharing);
+    return st.role === 'caregiver' && st.mySharing;
   },
   async startForeground() {
     registerFgService();
     await notifee.createChannel({ id: CHANNEL, name: 'Location sharing', importance: AndroidImportance.LOW });
     await notifee.displayNotification({
-      id: 'loc-fg', title: 'Sharing your location',
-      body: 'Your caregiver can see where you are. Turn this off in Profile.',
+      id: 'loc-fg', title: 'Location sharing is on',
+      body: 'Your location is being shared. Turn this off in the app.',
       android: { channelId: CHANNEL, asForegroundService: true, ongoing: true, pressAction: { id: 'default' } },
     });
   },
