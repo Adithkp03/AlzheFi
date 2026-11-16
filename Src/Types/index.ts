@@ -106,3 +106,20 @@ export interface OutgoingCareLink {
   role: CareLinkRole;
   status: CareLinkStatus;
 }
+
+// ---------- Location sharing (feature is off on the server unless enabled) ----------
+export interface PatientSharingStatus {
+  role: 'patient';
+  caregivers: { caregiverId: string; caregiverName: string; role: CareLinkRole; sharing: boolean }[];
+}
+export interface CaregiverSharingStatus {
+  role: 'caregiver';
+  mySharing: boolean;
+  patients: { patientId: string; patientName: string; role: CareLinkRole; patientSharing: boolean; canSetBoundary: boolean }[];
+}
+export type SharingStatus = PatientSharingStatus | CaregiverSharingStatus;
+export interface Zone { lat: number; lon: number; radiusM: number }
+export type LiveLocation =
+  | { status: 'unknown' }
+  | { status: 'stale'; ageMs: number }
+  | { status: 'live'; lat: number; lon: number; accuracyM: number; recordedAt: number; ageMs: number };

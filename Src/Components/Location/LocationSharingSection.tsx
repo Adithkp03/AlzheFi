@@ -1,0 +1,119 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { apiService } from '../../Services/apiService';
+import { SharingStatus } from '../../Types';
+import { YELLOW, DARK, MUTED, BORDER, WHITE, DANGER } from '../CareLinks/theme';
+
+/**
+ * Location sharing controls. Hidden entirely when the server has the feature off (404).
+ * Patient: choose which linked caregiver may see where you are; one switch turns everything off.
+ * Caregiver: your own switch for "nearby" alerts; the primary caregiver can set the safe-area boundary.
+ * Test-only build: values and behaviour are not clinically validated.
+ */
+export default function LocationSharingSection() {
+  const [st, setSt] = useState<SharingStatus | null>(null);
+  const [off, setOff] = useState(false);          // feature disabled on server
+  const [busy, setBusy] = useState(false);
+  const [zoneFor, setZoneFor] = useState<string | null>(null);
+  const [form, setForm] = useState({ lat: '', lon: '', radiusM: '300' });
+
+  const load = useCallback(async () => {
+    try { setSt(await apiService.getSharingStatus()); setOff(false); }
+    catch (e: any) { if (e?.response?.status === 404) setOff(true); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const act = async (fn: () => Promise<void>, fail: string) => {
+    setBusy(true);
+    try { await fn(); } catch (e: any) { Alert.alert('Not done', e?.response?.data?.error ?? fail); }
+    finally { setBusy(false); await load(); }
+  };
+
+  const openZone = async (patientId: string) => {
+    setZoneFor(patientId);
+    try {
+      const z = await apiService.getZone(patientId);
+      if (z) setForm({ lat: String(z.lat), lon: String(z.lon), radiusM: String(z.radiusM) });
+    } catch { /* keep defaults */ }
+  };
+  const saveZone = () => act(async () => {
+    await apiService.setZone(zoneFor!, { lat: Number(form.lat), lon: Number(form.lon), radiusM: Number(form.radiusM) });
+    setZoneFor(null);
+  }, 'Could not save the boundary. Check the numbers.');
+
+  if (off || !st) return st === null && !off ? <View style={s.pad}><ActivityIndicator color={DARK} /></View> : null;
+
+  return (
+    <View style={s.section} testID="location-sharing">
+      <Text style={s.title}>Location sharing</Text>
+      <View style={s.card}>
+        {st.role === 'patient' ? (
+          <>
+            <Text style={s.note}>Turn this on for a caregiver you trust. It stays on until you turn it off. They are told when you leave the safe area their primary caregiver set, and you are told when a caregiver who also shares is nearby.</Text>
+            {st.caregivers.length === 0 && <Text style={s.muted}>No caregivers are linked to your account.</Text>}
+            {st.caregivers.map(c => (
+              <View key={c.caregiverId} style={s.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.name}>{c.caregiverName}</Text>
+                  <Text style={s.muted}>{c.role === 'primary' ? 'Primary caregiver' : 'Secondary caregiver'}</Text>
+                </View>
+                <Switch value={c.sharing} disabled={busy}
+                  onValueChange={v => act(() => apiService.setLocationGrant(c.caregiverId, v), 'Could not change sharing.')} />
+              </View>
+            ))}
+            {st.caregivers.some(c => c.sharing) && (
+              <TouchableOpacity style={s.danger} disabled={busy} onPress={() => act(() => apiService.stopAllLocationSharing(), 'Could not turn sharing off.')}>
+                <Text style={s.dangerText}>Stop sharing with everyone</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        ) : (
+          <>
+            <View style={s.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.name}>Share my location for "nearby" alerts</Text>
+                <Text style={s.muted}>Patients who share with you are told when you are close.</Text>
+              </View>
+              <Switch value={st.mySharing} disabled={busy}
+                onValueChange={v => act(() => apiService.setCaregiverSharing(v), 'Could not change sharing.')} />
+            </View>
+            {st.patients.map(p => (
+              <View key={p.patientId} style={s.block}>
+                <Text style={s.name}>{p.patientName}</Text>
+                <Text style={s.muted}>
+                  {!p.patientSharing ? 'Not sharing their location with you.'
+                    : p.canSetBoundary ? 'Sharing with you. You can set the safe area.'
+                    : 'Sharing with you. Only the primary caregiver sets the safe area.'}
+                </Text>
+                {p.canSetBoundary && zoneFor !== p.patientId && (
+                  <TouchableOpacity style={s.btn} onPress={() => openZone(p.patientId)}><Text style={s.btnText}>Set safe area</Text></TouchableOpacity>
+                )}
+                {zoneFor === p.patientId && (
+                  <View>
+                    {(['lat', 'lon', 'radiusM'] as const).map(k => (
+                      <TextInput key={k} style={s.input} keyboardType="numeric" value={form[k]} placeholder={k === 'radiusM' ? 'Radius in metres' : k === 'lat' ? 'Latitude' : 'Longitude'}
+                        onChangeText={t => setForm(f => ({ ...f, [k]: t }))} />
+                    ))}
+                    <TouchableOpacity style={s.btn} disabled={busy} onPress={saveZone}><Text style={s.btnText}>Save</Text></TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            ))}
+          </>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  section: { marginTop: 20 }, pad: { padding: 16 },
+  title: { fontSize: 13, fontWeight: '700', color: MUTED, marginBottom: 8, textTransform: 'uppercase' },
+  card: { backgroundColor: WHITE, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 14 },
+  note: { color: DARK, fontSize: 13, marginBottom: 10 }, muted: { color: MUTED, fontSize: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }, name: { color: DARK, fontWeight: '600', fontSize: 15 },
+  block: { paddingVertical: 8, borderTopWidth: 1, borderTopColor: BORDER, marginTop: 6 },
+  btn: { backgroundColor: YELLOW, borderRadius: 12, paddingVertical: 10, alignItems: 'center', marginTop: 8 }, btnText: { color: DARK, fontWeight: '700' },
+  input: { borderWidth: 1, borderColor: BORDER, borderRadius: 10, padding: 10, marginTop: 8, color: DARK },
+  danger: { marginTop: 10, paddingVertical: 10, alignItems: 'center' }, dangerText: { color: DANGER, fontWeight: '700' },
+});

@@ -13,6 +13,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../Context/AuthContext';
 import { apiService } from '../../Services/apiService';
 import LinkPatientModal from '../../Components/CareLinks/LinkPatientModal';
+import LocationSharingSection from '../../Components/Location/LocationSharingSection';
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 const YELLOW = '#E3F73F';
@@ -285,6 +286,7 @@ export default function PatientsScreen() {
           {patientData.map((d, i) => (
             <PatientCard key={d.patient._id} data={d} index={i} />
           ))}
+          <LocationSharingSection />
         </ScrollView>
       )}
       <LinkPatientModal visible={linkOpen} onClose={() => setLinkOpen(false)} onChanged={fetchPatients} />

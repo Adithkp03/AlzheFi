@@ -138,6 +138,36 @@ class ApiService {
     await this.api.post(`/care-links/${id}/revoke`);
   }
 
+  // ---------- LOCATION (server returns 404 while the feature is off) ----------
+  async getSharingStatus(): Promise<Types.SharingStatus> {
+    return (await this.api.get('/location/status')).data;
+  }
+  async setLocationGrant(caregiverId: string, on: boolean): Promise<void> {
+    if (on) await this.api.post('/location/grants', { caregiverId });
+    else await this.api.post('/location/grants/revoke', { caregiverId });
+  }
+  async stopAllLocationSharing(): Promise<void> {
+    await this.api.post('/location/sharing/off');
+  }
+  async setCaregiverSharing(on: boolean): Promise<void> {
+    await this.api.post(`/location/caregiver-sharing/${on ? 'on' : 'off'}`);
+  }
+  async getZone(patientId: string): Promise<Types.Zone | null> {
+    return (await this.api.get(`/location/zone/${patientId}`)).data;
+  }
+  async setZone(patientId: string, zone: Types.Zone): Promise<Types.Zone> {
+    return (await this.api.put(`/location/zone/${patientId}`, zone)).data;
+  }
+  async getLiveLocation(patientId: string): Promise<Types.LiveLocation> {
+    return (await this.api.get(`/location/live/${patientId}`)).data;
+  }
+  async sendLocationFix(fix: { lat: number; lon: number; accuracyM: number; recordedAt: number }): Promise<void> {
+    await this.api.post('/location/fix', fix);
+  }
+  async registerDeviceToken(token: string): Promise<void> {
+    await this.api.post('/location/device-token', { token });
+  }
+
   async getPatientProfile(patientId: string): Promise<Types.PatientProfile> {
     const res = await this.api.get(`/caregiver/patient/${patientId}/profile`);
     return res.data;

@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../Context/AuthContext';
 import CaregiverAccessSection from '../../Components/CareLinks/CaregiverAccessSection';
+import LocationSharingSection from '../../Components/Location/LocationSharingSection';
 
 const YELLOW = '#E3F73F';
 const DARK   = '#1F2937';
@@ -132,6 +133,7 @@ export default function ProfileScreen() {
         ))}
 
         {user?.role !== 'caregiver' && <CaregiverAccessSection />}
+        <LocationSharingSection />
 
         {/* Logout Section (UI unchanged) */}
         <View style={styles.section}>
