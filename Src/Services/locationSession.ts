@@ -37,6 +37,7 @@ export class LocationSession {
   constructor(private d: SessionDeps) {}
 
   get owner() { return this.ownerId; }
+  get ownerRole() { return this.role; }
   get capturing() { return this.stopWatch !== null; }
 
   /** Call whenever the signed-in user changes (null = signed out). */
@@ -52,6 +53,22 @@ export class LocationSession {
       if (t) { await this.d.registerToken(t); this.lastToken = t; }
     } catch { /* push is best effort */ }
     if (role) await this.refreshCapture();
+  }
+
+  /**
+   * FCM rotated this device's token. Applies only to the account that is still signed in: a callback that lands
+   * after sign-out or an account switch is dropped, and a registration that finished after such a change is undone.
+   */
+  async onTokenRefreshed(newToken: string): Promise<void> {
+    const g = this.gen; const owner = this.ownerId;
+    if (!owner || !newToken || newToken === this.lastToken) return;
+    const old = this.lastToken;
+    try {
+      await this.d.registerToken(newToken);
+      if (g !== this.gen || owner !== this.ownerId) { try { await this.d.unregisterToken(newToken); } catch { /* best effort */ } return; }
+      this.lastToken = newToken;
+      if (old) { try { await this.d.unregisterToken(old); } catch { /* server prunes invalid tokens */ } }
+    } catch { /* next refresh or sign-in retries */ }
   }
 
   /** Start or stop capture to match the patient's grants. Sharing stays on until the patient turns it off. */

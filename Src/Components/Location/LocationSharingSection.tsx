@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Switch, TouchableOpacity, TextInput, ActivityIn
 import { apiService } from '../../Services/apiService';
 import { SharingStatus } from '../../Types';
 import { locationSession } from '../../Services/locationNative';
+import { pushFocus } from '../../Services/pushFocus';
 import LiveLocationCard from './LiveLocationCard';
 import { YELLOW, DARK, MUTED, BORDER, WHITE, DANGER } from '../CareLinks/theme';
 
@@ -24,6 +25,14 @@ export default function LocationSharingSection() {
     catch (e: any) { if (e?.response?.status === 404) setOff(true); }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // A tapped "left the safe area" alert for the signed-in caregiver: show that patient first (the server still decides access).
+  const [focusId, setFocusId] = useState<string | null>(null);
+  useEffect(() => {
+    const take = () => { const id = pushFocus.consume(locationSession.owner); if (id) { setFocusId(id); load(); } };
+    take();
+    return pushFocus.subscribe(take);
+  }, [load]);
 
   const act = async (fn: () => Promise<void>, fail: string) => {
     setBusy(true);
@@ -79,8 +88,9 @@ export default function LocationSharingSection() {
               <Switch value={st.mySharing} disabled={busy}
                 onValueChange={v => act(() => apiService.setCaregiverSharing(v), 'Could not change sharing.')} />
             </View>
-            {st.patients.map(p => (
+            {[...st.patients].sort((a, b) => Number(b.patientId === focusId) - Number(a.patientId === focusId)).map(p => (
               <View key={p.patientId} style={s.block}>
+                {p.patientId === focusId && <Text style={s.muted}>Opened from an alert. Live view below.</Text>}
                 <Text style={s.name}>{p.patientName}</Text>
                 <Text style={s.muted}>
                   {!p.patientSharing ? 'Not sharing their location with you.'

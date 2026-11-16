@@ -1,7 +1,10 @@
 import { PermissionsAndroid, Platform } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import notifee, { AndroidImportance } from '@notifee/react-native';
-import { getMessaging, getToken, deleteToken } from '@react-native-firebase/messaging';
+import { getMessaging, getToken, deleteToken, onMessage, onTokenRefresh, onNotificationOpenedApp, getInitialNotification } from '@react-native-firebase/messaging';
+import { EventType } from '@notifee/react-native';
+import { pushFocus } from './pushFocus';
+import { openPatientsForPendingAlert } from '../Navigation/navigationRef';
 import { apiService } from './apiService';
 import { LocationSession, SessionDeps, SAMPLE_REQUEST_MS, FASTEST_REQUEST_MS } from './locationSession';
 
@@ -61,3 +64,44 @@ const deps: SessionDeps = {
 export const locationSession = new LocationSession(deps);
 
 apiService.beforeLogout = () => locationSession.teardown();
+
+const ALERT_CHANNEL = 'location-alerts';
+
+/** A tapped alert: remember the patient for the signed-in caregiver and go to the live view. Never carries a position. */
+function handleTap(data: any) {
+  if (pushFocus.record(locationSession.owner, locationSession.ownerRole, data)) openPatientsForPendingAlert();
+}
+
+/**
+ * Push listeners (call once at app start; returns an unsubscribe).
+ * - Foreground: FCM does not show a tray notification while the app is open, so show a local one (signed-in account only).
+ * - Tap on a local or system-tray notification (running, background or cold start): open the caregiver live view.
+ * - Token refresh: re-register the new token for the signed-in account only.
+ * Test build: no claim that delivery works on a given phone; that is checked on the devices.
+ */
+export function startPushListeners(): () => void {
+  const m = getMessaging();
+  const subs: Array<() => void> = [];
+  try {
+    subs.push(onMessage(m, async msg => {
+      if (!locationSession.owner) return;
+      const d: any = msg.data ?? {};
+      const title = msg.notification?.title ?? 'Alzhefi alert';
+      const body = msg.notification?.body ?? 'Open the app.';
+      await notifee.createChannel({ id: ALERT_CHANNEL, name: 'Location alerts', importance: AndroidImportance.HIGH });
+      await notifee.displayNotification({
+        title, body, data: { kind: String(d.kind ?? ''), patientId: String(d.patientId ?? '') },
+        android: { channelId: ALERT_CHANNEL, pressAction: { id: 'default' } },
+      });
+    }));
+    subs.push(onNotificationOpenedApp(m, msg => handleTap(msg?.data)));
+    subs.push(onTokenRefresh(m, t => { locationSession.onTokenRefreshed(t).catch(() => {}); }));
+  } catch { /* no Play services / google-services: push unavailable */ }
+  subs.push(notifee.onForegroundEvent(({ type, detail }) => {
+    if (type === EventType.PRESS) handleTap(detail.notification?.data);
+  }));
+  // Cold start from a tapped notification.
+  getInitialNotification(m).then(msg => { if (msg) handleTap(msg.data); }).catch(() => {});
+  notifee.getInitialNotification().then(n => { if (n?.notification) handleTap(n.notification.data); }).catch(() => {});
+  return () => subs.forEach(u => { try { u(); } catch { /* ignore */ } });
+}

@@ -6,6 +6,8 @@ import { AuthProvider, useAuth } from './Src/Context/AuthContext';
 import AuthNavigator from './Src/Navigation/AuthNavigator';
 import AppNavigator from './Src/Navigation/AppNavigator';
 import IntroScreen from './Src/Screens/IntroScreen';
+import { navigationRef, openPatientsForPendingAlert } from './Src/Navigation/navigationRef';
+import { startPushListeners } from './Src/Services/locationNative';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
@@ -16,6 +18,8 @@ function RootNavigator() {
   const [appState, setAppState] = useState<
     'loading' | 'intro' | 'auth' | 'app'
   >('loading');
+
+  useEffect(() => startPushListeners(), []);
 
   useEffect(() => {
     initializeApp();
@@ -51,7 +55,7 @@ useEffect(() => {
   if (appState === 'loading') return null;
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef} onReady={openPatientsForPendingAlert} onStateChange={openPatientsForPendingAlert}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
 
         {appState === 'intro' && (
