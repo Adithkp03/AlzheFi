@@ -1,6 +1,6 @@
 import { PermissionsAndroid, Platform } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
-import notifee, { AndroidImportance } from '@notifee/react-native';
+import notifee, { AndroidImportance, AndroidForegroundServiceType } from '@notifee/react-native';
 import { getMessaging, getToken, deleteToken, onMessage, onTokenRefresh, onNotificationOpenedApp, getInitialNotification } from '@react-native-firebase/messaging';
 import { EventType } from '@notifee/react-native';
 import { pushFocus } from './pushFocus';
@@ -46,7 +46,7 @@ const deps: SessionDeps = {
     await notifee.displayNotification({
       id: 'loc-fg', title: 'Location sharing is on',
       body: 'Your location is being shared. Turn this off in the app.',
-      android: { channelId: CHANNEL, asForegroundService: true, ongoing: true, pressAction: { id: 'default' } },
+      android: { channelId: CHANNEL, asForegroundService: true, foregroundServiceTypes: [AndroidForegroundServiceType.FOREGROUND_SERVICE_TYPE_LOCATION], ongoing: true, pressAction: { id: 'default' } },
     });
   },
   async stopForeground() {
