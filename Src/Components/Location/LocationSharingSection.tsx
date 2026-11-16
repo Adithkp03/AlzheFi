@@ -52,8 +52,13 @@ export default function LocationSharingSection() {
     setZoneFor(patientId);
     try {
       const z = await apiService.getZone(patientId);
-      if (z) setForm({ lat: String(z.lat), lon: String(z.lon), radiusM: String(z.radiusM) });
+      if (z) { setForm({ lat: String(z.lat), lon: String(z.lon), radiusM: String(z.radiusM) }); return; }
     } catch { /* keep defaults */ }
+    // No boundary yet: start from the patient's latest fix, only if it is fresh (live). Never a stale position.
+    try {
+      const l: any = await apiService.getLiveLocation(patientId);
+      if (l?.status === 'live') setForm(f => ({ ...f, lat: l.lat.toFixed(5), lon: l.lon.toFixed(5) }));
+    } catch { /* leave empty */ }
   };
   const saveZone = () => act(async () => {
     await apiService.setZone(zoneFor!, { lat: Number(form.lat), lon: Number(form.lon), radiusM: Number(form.radiusM) });
@@ -111,6 +116,7 @@ export default function LocationSharingSection() {
                 )}
                 {zoneFor === p.patientId && (
                   <View>
+                    <Text style={s.muted}>Centre of the safe area in decimal degrees, and its radius in metres (100 to 5000, test values). Filled from the patient's live position when there is one.</Text>
                     {(['lat', 'lon', 'radiusM'] as const).map(k => (
                       <TextInput key={k} style={s.input} keyboardType="numeric" value={form[k]} placeholder={k === 'radiusM' ? 'Radius in metres' : k === 'lat' ? 'Latitude' : 'Longitude'}
                         onChangeText={t => setForm(f => ({ ...f, [k]: t }))} />
