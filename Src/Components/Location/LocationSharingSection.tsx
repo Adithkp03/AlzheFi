@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { AppState } from 'react-native';
+import { careLinkEvents, AUTO_REFRESH_MS } from '../../Services/careLinkEvents';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { apiService } from '../../Services/apiService';
 import { SharingStatus } from '../../Types';
@@ -24,7 +26,13 @@ export default function LocationSharingSection() {
     try { setSt(await apiService.getSharingStatus()); setOff(false); }
     catch (e: any) { if (e?.response?.status === 404) setOff(true); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const id = setInterval(() => { if (AppState.currentState === 'active') load(); }, AUTO_REFRESH_MS);
+    const app = AppState.addEventListener('change', s => { if (s === 'active') load(); });
+    const unsub = careLinkEvents.subscribe(load);
+    return () => { clearInterval(id); app.remove(); unsub(); };
+  }, [load]);
 
   // A tapped "left the safe area" alert for the signed-in caregiver: show that patient first (the server still decides access).
   const [focusId, setFocusId] = useState<string | null>(null);

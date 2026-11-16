@@ -4,7 +4,8 @@ import notifee, { AndroidImportance } from '@notifee/react-native';
 import { getMessaging, getToken, deleteToken, onMessage, onTokenRefresh, onNotificationOpenedApp, getInitialNotification } from '@react-native-firebase/messaging';
 import { EventType } from '@notifee/react-native';
 import { pushFocus } from './pushFocus';
-import { openPatientsForPendingAlert } from '../Navigation/navigationRef';
+import { careLinkEvents } from './careLinkEvents';
+import { openPatientsForPendingAlert, openProfileForRequest } from '../Navigation/navigationRef';
 import { apiService } from './apiService';
 import { LocationSession, SessionDeps, SAMPLE_REQUEST_MS, FASTEST_REQUEST_MS } from './locationSession';
 
@@ -69,6 +70,10 @@ const ALERT_CHANNEL = 'location-alerts';
 
 /** A tapped alert: remember the patient for the signed-in caregiver and go to the live view. Never carries a position. */
 function handleTap(data: any) {
+  if (data?.kind === 'care_link_request') {
+    if (locationSession.owner && locationSession.ownerRole === 'patient') { openProfileForRequest(); careLinkEvents.emit(); }
+    return;
+  }
   if (pushFocus.record(locationSession.owner, locationSession.ownerRole, data)) openPatientsForPendingAlert();
 }
 

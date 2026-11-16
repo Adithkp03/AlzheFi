@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { AppState, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { apiService } from '../../Services/apiService';
 import { CareLinkRole, IncomingCareLink } from '../../Types';
+import { careLinkEvents, AUTO_REFRESH_MS } from '../../Services/careLinkEvents';
 import { YELLOW, DARK, MUTED, BORDER, WHITE, DANGER } from './theme';
 
 /**
@@ -25,7 +26,13 @@ export default function CaregiverAccessSection() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const id = setInterval(() => { if (AppState.currentState === 'active') load(); }, AUTO_REFRESH_MS);
+    const app = AppState.addEventListener('change', s => { if (s === 'active') load(); });
+    const unsub = careLinkEvents.subscribe(load);
+    return () => { clearInterval(id); app.remove(); unsub(); };
+  }, [load]);
 
   const run = async (id: string, fn: () => Promise<void>, failMsg: string) => {
     setBusyId(id);
@@ -35,7 +42,7 @@ export default function CaregiverAccessSection() {
       Alert.alert('Not done', status === 409
         ? 'You already have a primary caregiver. Choose "Secondary" or remove the current primary first.'
         : failMsg);
-    } finally { setBusyId(null); await load(); }
+    } finally { setBusyId(null); await load(); careLinkEvents.emit(); }
   };
 
   const approve = (l: IncomingCareLink, role: CareLinkRole) =>
