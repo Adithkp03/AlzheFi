@@ -3,8 +3,8 @@ import { AppState } from 'react-native';
 import { careLinkEvents, AUTO_REFRESH_MS } from '../../Services/careLinkEvents';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { apiService } from '../../Services/apiService';
-import { SharingStatus } from '../../Types';
-import { locationSession } from '../../Services/locationNative';
+import { SharingStatus, BatteryReading } from '../../Types';
+import { locationSession, batteryReporter } from '../../Services/locationNative';
 import { pushFocus } from '../../Services/pushFocus';
 import LiveLocationCard from './LiveLocationCard';
 import { YELLOW, DARK, MUTED, BORDER, WHITE, DANGER } from '../CareLinks/theme';
@@ -19,12 +19,20 @@ export default function LocationSharingSection() {
   const [st, setSt] = useState<SharingStatus | null>(null);
   const [off, setOff] = useState(false);          // feature disabled on server
   const [busy, setBusy] = useState(false);
+  const [batt, setBatt] = useState<Record<string, BatteryReading>>({});
   const [zoneFor, setZoneFor] = useState<string | null>(null);
   const [form, setForm] = useState({ lat: '', lon: '', radiusM: '300' });
 
   const load = useCallback(async () => {
-    try { setSt(await apiService.getSharingStatus()); setOff(false); }
+    try {
+      const next = await apiService.getSharingStatus(); setSt(next); setOff(false);
+      if (next.role === 'caregiver') {
+        const entries = await Promise.all(next.patients.filter(p => p.role === 'primary' && p.batteryShared).map(async p => [p.patientId, await apiService.getBattery(p.patientId).catch(() => ({ status: 'unknown' } as BatteryReading))] as const));
+        setBatt(Object.fromEntries(entries));
+      }
+    }
     catch (e: any) { if (e?.response?.status === 404) setOff(true); }
+    batteryReporter.reconcile().catch(() => {});
     // Reconcile the phone's tracker with the server's consent state (starts only with an active grant, stops when revoked).
     locationSession.refreshCapture({ auto: true }).catch(() => {});
   }, []);
@@ -94,6 +102,15 @@ export default function LocationSharingSection() {
                   onValueChange={v => act(() => apiService.setLocationGrant(c.caregiverId, v), 'Could not change sharing.')} />
               </View>
             ))}
+            <View style={[s.row, s.block]}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.name}>Battery alerts</Text>
+                <Text style={s.muted}>Off unless you turn it on. Your phone's battery level is shared with your primary caregiver only. You and your primary caregiver are told when it is below 25% and not charging; the alert clears when you plug in.</Text>
+                <Text style={s.muted} testID="battery-status">{batteryReporter.statusLine()}</Text>
+              </View>
+              <Switch value={!!st.batteryOn} disabled={busy}
+                onValueChange={v => act(() => apiService.setBatterySharing(v), 'Could not change battery alerts.')} />
+            </View>
             {st.caregivers.some(c => c.sharing) && (
               <TouchableOpacity style={s.danger} disabled={busy} onPress={() => act(() => apiService.stopAllLocationSharing(), 'Could not turn sharing off.')}>
                 <Text style={s.dangerText}>Stop sharing with everyone</Text>
@@ -119,6 +136,16 @@ export default function LocationSharingSection() {
                     : p.canSetBoundary ? 'Sharing with you. You can set the safe area.'
                     : 'Sharing with you. Only the primary caregiver sets the safe area.'}
                 </Text>
+                {p.role === 'primary' && (
+                  <Text style={s.muted} testID={`battery-${p.patientId}`}>{(() => {
+                    if (!p.batteryShared) return 'Battery: not shared by the patient.';
+                    const b = batt[p.patientId];
+                    if (!b || b.status === 'unknown') return 'Battery: no reading yet.';
+                    if (b.status === 'stale') return 'Battery: no recent reading.';
+                    if (b.status === 'live') return `Battery ${b.pct}%${b.charging ? ', charging' : b.pct < 25 ? ', low' : ''}. ${Math.round(b.ageMs / 1000)}s ago.`;
+                    return 'Battery: not shared by the patient.';
+                  })()}</Text>
+                )}
                 {p.patientSharing && <LiveLocationCard patientId={p.patientId} />}
                 {p.canSetBoundary && zoneFor !== p.patientId && (
                   <TouchableOpacity style={s.btn} onPress={() => openZone(p.patientId)}><Text style={s.btnText}>Set safe area</Text></TouchableOpacity>

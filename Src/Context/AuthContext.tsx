@@ -1,4 +1,4 @@
-import { locationSession } from '../Services/locationNative'
+import { locationSession, batteryReporter } from '../Services/locationNative'
 import React, { createContext, useReducer, useCallback, useEffect, ReactNode } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { apiService } from '../Services/apiService'
@@ -112,7 +112,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const ownerId = state.user?.id ?? state.user?._id ?? null
   const ownerRole = (state.user as any)?.role ?? null
   useEffect(() => {
-    locationSession.setOwner(ownerId, ownerRole === 'patient' || ownerRole === 'caregiver' ? ownerRole : null).catch(() => {})
+    const r = ownerRole === 'patient' || ownerRole === 'caregiver' ? ownerRole : null
+    batteryReporter.setOwner(ownerId, r)
+    locationSession.setOwner(ownerId, r).catch(() => {})
   }, [ownerId, ownerRole])
 
   const bootstrapAsync = useCallback(async () => {

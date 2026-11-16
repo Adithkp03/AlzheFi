@@ -62,3 +62,10 @@ test('a delayed refresh that finishes after sign-out is undone, never kept for t
   await s.setOwner('cg2', 'caregiver');
   expect(h.log.filter(x => x === 'reg:tok-slow').length).toBe(1);
 });
+
+test('a caregiver battery_low tap opens that patient; a patient never does', () => {
+  const f = new PushFocus(); const id = 'a'.repeat(24);
+  expect(f.record('cg', 'caregiver', { kind: 'battery_low', patientId: id })).toBe(true);
+  expect(f.consume('cg')).toBe(id);
+  expect(f.record('pat', 'patient', { kind: 'battery_low', patientId: id })).toBe(false);
+});

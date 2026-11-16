@@ -7,6 +7,9 @@ import { pushFocus } from './pushFocus';
 import { careLinkEvents } from './careLinkEvents';
 import { openPatientsForPendingAlert, openProfileForRequest } from '../Navigation/navigationRef';
 import { apiService } from './apiService';
+import DeviceInfo from 'react-native-device-info';
+import { BatteryReporter } from './batteryReporter';
+import { clearBatteryAlerts } from './batteryAlerts';
 import { LocationSession, SessionDeps, SAMPLE_REQUEST_MS, FASTEST_REQUEST_MS } from './locationSession';
 
 const CHANNEL = 'location-sharing';
@@ -68,9 +71,22 @@ const deps: SessionDeps = {
 
 export const locationSession = new LocationSession(deps);
 
-AppState.addEventListener('change', st => { if (st === 'active') locationSession.refreshCapture({ auto: true }).catch(() => {}); });
+export const batteryReporter = new BatteryReporter({
+  async read() {
+    const lvl = await DeviceInfo.getBatteryLevel();          // 0..1, -1 when unknown
+    if (!(lvl >= 0)) throw new Error('battery unknown');
+    return { pct: Math.round(lvl * 100), charging: await DeviceInfo.isBatteryCharging() };
+  },
+  send: r => apiService.sendBattery(r),
+  async wanted() { const st: any = await apiService.getSharingStatus(); return st.role === 'patient' && !!st.batteryOn; },
+  clearLocalAlert: () => clearBatteryAlerts(locationSession.owner ?? undefined),
+  now: () => Date.now(),
+  every: (fn, ms) => { const id = setInterval(fn, ms); return () => clearInterval(id); },
+});
 
-apiService.beforeLogout = () => locationSession.teardown();
+AppState.addEventListener('change', st => { if (st === 'active') { locationSession.refreshCapture({ auto: true }).catch(() => {}); batteryReporter.reconcile().catch(() => {}); } });
+
+apiService.beforeLogout = async () => { batteryReporter.teardown(); await locationSession.teardown(); };
 
 const ALERT_CHANNEL = 'location-alerts';
 
@@ -97,11 +113,13 @@ export function startPushListeners(): () => void {
     subs.push(onMessage(m, async msg => {
       if (!locationSession.owner) return;
       const d: any = msg.data ?? {};
+      if (d.kind === 'battery_clear') { await clearBatteryAlerts(String(d.patientId ?? '')); return; }
       const title = msg.notification?.title ?? 'Alzhefi alert';
       const body = msg.notification?.body ?? 'Open the app.';
       await notifee.createChannel({ id: ALERT_CHANNEL, name: 'Location alerts', importance: AndroidImportance.HIGH });
       await notifee.displayNotification({
         title, body, data: { kind: String(d.kind ?? ''), patientId: String(d.patientId ?? '') },
+        id: d.kind === 'battery_low' ? `battery-low-${String(d.patientId ?? '')}` : undefined,
         android: { channelId: ALERT_CHANNEL, pressAction: { id: 'default' } },
       });
     }));

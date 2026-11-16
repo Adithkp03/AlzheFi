@@ -111,13 +111,18 @@ export interface OutgoingCareLink {
 export interface PatientSharingStatus {
   role: 'patient';
   caregivers: { caregiverId: string; caregiverName: string; role: CareLinkRole; sharing: boolean }[];
+  batteryOn?: boolean;
 }
 export interface CaregiverSharingStatus {
   role: 'caregiver';
   mySharing: boolean;
-  patients: { patientId: string; patientName: string; role: CareLinkRole; patientSharing: boolean; canSetBoundary: boolean }[];
+  patients: { patientId: string; patientName: string; role: CareLinkRole; patientSharing: boolean; canSetBoundary: boolean; batteryShared?: boolean }[];
 }
 export type SharingStatus = PatientSharingStatus | CaregiverSharingStatus;
+export type BatteryReading =
+  | { status: 'off' | 'unknown' }
+  | { status: 'stale'; ageMs: number }
+  | { status: 'live'; pct: number; charging: boolean; ageMs: number };
 export interface Zone { lat: number; lon: number; radiusM: number }
 export type LiveLocation =
   | { status: 'unknown' }

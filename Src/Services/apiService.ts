@@ -149,6 +149,9 @@ class ApiService {
   async stopAllLocationSharing(): Promise<void> {
     await this.api.post('/location/sharing/off');
   }
+  async setBatterySharing(on: boolean): Promise<void> { await this.api.post(`/location/battery/${on ? 'on' : 'off'}`); }
+  async sendBattery(r: { pct: number; charging: boolean; recordedAt: number }): Promise<void> { await this.api.post('/location/battery', r); }
+  async getBattery(patientId: string): Promise<Types.BatteryReading> { return (await this.api.get(`/location/battery/${patientId}`)).data; }
   async setCaregiverSharing(on: boolean): Promise<void> {
     await this.api.post(`/location/caregiver-sharing/${on ? 'on' : 'off'}`);
   }

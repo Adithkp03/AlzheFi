@@ -13,10 +13,10 @@ export class PushFocus {
   private pending: Pending | null = null;
   private listeners = new Set<Listener>();
 
-  /** Only a caregiver's "patient left the safe area" alert opens a patient's live view. Returns true if recorded. */
+  /** Only a caregiver's "patient left the safe area" or "battery low" alert opens a patient's live view. Returns true if recorded. */
   record(ownerId: string | null, role: 'patient' | 'caregiver' | null, data: PushData | null | undefined): boolean {
     if (!ownerId || role !== 'caregiver' || !data) return false;
-    if (data.kind !== 'patient_left_zone' || typeof data.patientId !== 'string' || !ID.test(data.patientId)) return false;
+    if ((data.kind !== 'patient_left_zone' && data.kind !== 'battery_low') || typeof data.patientId !== 'string' || !ID.test(data.patientId)) return false;
     this.pending = { ownerId, patientId: data.patientId };
     this.listeners.forEach(l => l());
     return true;
