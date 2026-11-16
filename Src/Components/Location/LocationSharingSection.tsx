@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { apiService } from '../../Services/apiService';
 import { SharingStatus } from '../../Types';
+import { locationSession } from '../../Services/locationNative';
+import LiveLocationCard from './LiveLocationCard';
 import { YELLOW, DARK, MUTED, BORDER, WHITE, DANGER } from '../CareLinks/theme';
 
 /**
@@ -26,7 +28,7 @@ export default function LocationSharingSection() {
   const act = async (fn: () => Promise<void>, fail: string) => {
     setBusy(true);
     try { await fn(); } catch (e: any) { Alert.alert('Not done', e?.response?.data?.error ?? fail); }
-    finally { setBusy(false); await load(); }
+    finally { setBusy(false); await load(); locationSession.refreshCapture().catch(() => {}); }
   };
 
   const openZone = async (patientId: string) => {
@@ -85,6 +87,7 @@ export default function LocationSharingSection() {
                     : p.canSetBoundary ? 'Sharing with you. You can set the safe area.'
                     : 'Sharing with you. Only the primary caregiver sets the safe area.'}
                 </Text>
+                {p.patientSharing && <LiveLocationCard patientId={p.patientId} />}
                 {p.canSetBoundary && zoneFor !== p.patientId && (
                   <TouchableOpacity style={s.btn} onPress={() => openZone(p.patientId)}><Text style={s.btnText}>Set safe area</Text></TouchableOpacity>
                 )}

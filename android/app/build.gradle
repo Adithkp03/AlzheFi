@@ -117,3 +117,6 @@ dependencies {
         implementation jscFlavor
     }
 }
+
+// Push needs google-services.json (not committed). Without it the app still builds; push is simply unavailable.
+if (file("google-services.json").exists()) { apply plugin: "com.google.gms.google-services" }

@@ -164,6 +164,9 @@ class ApiService {
   async sendLocationFix(fix: { lat: number; lon: number; accuracyM: number; recordedAt: number }): Promise<void> {
     await this.api.post('/location/fix', fix);
   }
+  async removeDeviceToken(token: string): Promise<void> {
+    await this.api.post('/location/device-token/remove', { token });
+  }
   async registerDeviceToken(token: string): Promise<void> {
     await this.api.post('/location/device-token', { token });
   }
@@ -293,7 +296,10 @@ async createContact(data: {
   }
 
   // ---------- LOGOUT ----------
+  /** Set by the location session; runs while the token still exists so it can stop capture and remove the push token. */
+  beforeLogout: (() => Promise<void>) | null = null;
   async logout(): Promise<void> {
+    try { await this.beforeLogout?.(); } catch { /* never block logout */ }
     await AsyncStorage.multiRemove(['userToken', 'user']);
   }
 

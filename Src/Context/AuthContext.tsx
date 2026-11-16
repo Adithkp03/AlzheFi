@@ -1,4 +1,5 @@
-import React, { createContext, useReducer, useCallback, ReactNode } from 'react'
+import { locationSession } from '../Services/locationNative'
+import React, { createContext, useReducer, useCallback, useEffect, ReactNode } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { apiService } from '../Services/apiService'
 import * as Types from '../Types'
@@ -106,6 +107,13 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(authReducer, initialState)
+
+  // Bind push token + location capture to the signed-in account; a change of account tears down the old one first.
+  const ownerId = state.user?.id ?? state.user?._id ?? null
+  const ownerRole = (state.user as any)?.role ?? null
+  useEffect(() => {
+    locationSession.setOwner(ownerId, ownerRole === 'patient' || ownerRole === 'caregiver' ? ownerRole : null).catch(() => {})
+  }, [ownerId, ownerRole])
 
   const bootstrapAsync = useCallback(async () => {
     const timeoutPromise = new Promise<{ token: string | null; user: Types.User | null }>((resolve) =>
