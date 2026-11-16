@@ -80,6 +80,7 @@ export const batteryReporter = new BatteryReporter({
   send: r => apiService.sendBattery(r),
   async wanted() { const st: any = await apiService.getSharingStatus(); return st.role === 'patient' && !!st.batteryOn; },
   clearLocalAlert: () => clearBatteryAlerts(locationSession.owner ?? undefined),
+  serviceRunning: () => locationSession.capturing,
   now: () => Date.now(),
   every: (fn, ms) => { const id = setInterval(fn, ms); return () => clearInterval(id); },
 });

@@ -105,7 +105,7 @@ export default function LocationSharingSection() {
             <View style={[s.row, s.block]}>
               <View style={{ flex: 1 }}>
                 <Text style={s.name}>Battery alerts</Text>
-                <Text style={s.muted}>Off unless you turn it on. Your phone's battery level is shared with your primary caregiver only. You and your primary caregiver are told when it is below 25% and not charging; the alert clears when you plug in.</Text>
+                <Text style={s.muted}>Your phone's battery level is shared with your primary caregiver only. You and your primary caregiver are told when it is below 25% and not charging; the alert clears when you plug in. The phone sends its battery only while the app is running; with location sharing on it keeps running in the background, otherwise keep the app open.</Text>
                 <Text style={s.muted} testID="battery-status">{batteryReporter.statusLine()}</Text>
               </View>
               <Switch value={!!st.batteryOn} disabled={busy}

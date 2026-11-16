@@ -10,6 +10,8 @@ export interface BatteryDeps {
   send(r: { pct: number; charging: boolean; recordedAt: number }): Promise<void>;
   wanted(): Promise<boolean>;                 // server: this patient's battery switch is on
   clearLocalAlert(): Promise<void>;
+  /** true while the location foreground service is running (the only thing that keeps the app alive in the background) */
+  serviceRunning(): boolean;
   now(): number;
   every(fn: () => void, ms: number): () => void;
 }
@@ -62,7 +64,8 @@ export class BatteryReporter {
     if (!this.running) return 'Battery alerts are off on this phone.';
     if (this.lastError) return this.lastError;
     if (this.lastSentAt === null) return 'Reading the battery...';
-    return `Battery ${this.lastPct}%${this.lastCharging ? ', charging' : ''}. Sent ${Math.max(0, Math.round((this.d.now() - this.lastSentAt) / 1000))}s ago.`;
+    const bg = this.d.serviceRunning() ? '' : ' Location sharing is off, so there is no background service: readings are sent only while the app is open.';
+    return `Battery ${this.lastPct}%${this.lastCharging ? ', charging' : ''}. Sent ${Math.max(0, Math.round((this.d.now() - this.lastSentAt) / 1000))}s ago.${bg}`;
   }
   teardown() { this.stop(); this.gen++; this.ownerId = null; this.role = null; }
 }

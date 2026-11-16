@@ -1,13 +1,13 @@
 import { BatteryReporter, BatteryDeps, BATTERY_REPORT_MS } from '../Src/Services/batteryReporter';
 
 function mk(want = true) {
-  let clock = 1_000_000; let level = { pct: 50, charging: false }; const sent: any[] = []; let timers: Array<() => void> = []; let cleared = 0; let wantNow = want;
+  let clock = 1_000_000; let level = { pct: 50, charging: false }; const sent: any[] = []; let timers: Array<() => void> = []; let cleared = 0; let wantNow = want; let svc = false;
   const d: BatteryDeps = {
     read: async () => level, send: async r => { sent.push(r); }, wanted: async () => wantNow,
-    clearLocalAlert: async () => { cleared++; }, now: () => clock,
+    clearLocalAlert: async () => { cleared++; }, serviceRunning: () => svc, now: () => clock,
     every: fn => { timers.push(fn); return () => { timers = timers.filter(t => t !== fn); }; },
   };
-  return { d, sent, tick: async () => { timers.slice().forEach(t => t()); await new Promise(r => setImmediate(r)); }, set: (l: any) => { level = l; }, setWant: (w: boolean) => { wantNow = w; }, cleared: () => cleared, timers: () => timers.length, adv: (ms: number) => { clock += ms; } };
+  return { d, sent, tick: async () => { timers.slice().forEach(t => t()); await new Promise(r => setImmediate(r)); }, set: (l: any) => { level = l; }, setWant: (w: boolean) => { wantNow = w; }, setSvc: (v: boolean) => { svc = v; }, cleared: () => cleared, timers: () => timers.length, adv: (ms: number) => { clock += ms; } };
 }
 const flush = () => new Promise<void>(r => setImmediate(() => r()));
 
@@ -53,4 +53,11 @@ test('account switch mid-read never sends under the new owner', async () => {
   const r = new BatteryReporter(m.d); r.setOwner('pat', 'patient'); await flush(); await flush();
   r.setOwner('pat2', 'patient'); release(); await flush(); await flush();
   expect(m.sent.filter(x => x.pct === 10)).toHaveLength(0);
+});
+
+test('status says there is no background service when location sharing is off, and not when it runs', async () => {
+  const m = mk(); const r = new BatteryReporter(m.d);
+  r.setOwner('pat', 'patient'); await flush(); await flush();
+  expect(r.statusLine()).toMatch(/only while the app is open/);
+  m.setSvc(true); expect(r.statusLine()).not.toMatch(/only while the app is open/);
 });
