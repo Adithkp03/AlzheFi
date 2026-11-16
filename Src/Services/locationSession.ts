@@ -39,6 +39,16 @@ export class LocationSession {
   get owner() { return this.ownerId; }
   get ownerRole() { return this.role; }
   lastError: string | null = null;
+  /** Evidence for testing, no coordinates: when the phone last got a GPS fix, last upload result, last OS watch error. */
+  lastFixAt: number | null = null; lastUploadAt: number | null = null; lastUploadError: string | null = null; lastWatchError: string | null = null;
+  statusLine(): string {
+    if (!this.stopWatch) return this.lastError ?? 'Tracking is not running on this phone.';
+    const ago = (t: number | null) => t ? `${Math.max(0, Math.round((this.d.now() - t) / 1000))}s ago` : null;
+    if (this.lastWatchError && !this.lastFixAt) return `No GPS fix yet (phone reported: ${this.lastWatchError}).`;
+    if (!this.lastFixAt) return 'Tracking started. Waiting for the first GPS fix.';
+    if (this.lastUploadError) return `GPS fix ${ago(this.lastFixAt)}, but sending failed (${this.lastUploadError}).`;
+    return this.lastUploadAt ? `GPS fix ${ago(this.lastFixAt)}. Last sent ${ago(this.lastUploadAt)}.` : `GPS fix ${ago(this.lastFixAt)}. Not sent yet.`;
+  }
   get capturing() { return this.stopWatch !== null; }
 
   /** Call whenever the signed-in user changes (null = signed out). */
@@ -80,10 +90,10 @@ export class LocationSession {
     try { want = await this.d.shouldCapture(this.role); } catch { return; }
     if (g !== this.gen) return;
     if (want && !this.stopWatch) {
-      this.lastError = null;
+      this.lastError = null; this.lastWatchError = null;
       try {
         await this.d.startForeground();
-        const stop = await this.d.watch(f => this.onFix(g, f), () => { /* OS error: no fix, server shows stale */ });
+        const stop = await this.d.watch(f => this.onFix(g, f), (e: any) => { this.lastWatchError = String(e?.message ?? e?.code ?? 'unknown').slice(0, 60); });
         if (g !== this.gen) { stop(); await this.d.stopForeground(); return; }
         this.stopWatch = stop;
       } catch (e: any) {
@@ -99,9 +109,11 @@ export class LocationSession {
   private async onFix(g: number, f: Fix) {
     if (g !== this.gen || !this.ownerId) return;           // fix from a previous owner is dropped
     const t = this.d.now();
+    this.lastFixAt = t;
     if (t - this.lastUpload < MIN_UPLOAD_GAP_MS) return;
     this.lastUpload = t;
-    try { await this.d.sendFix(f); } catch { /* next fix retries; server shows stale meanwhile */ }
+    try { await this.d.sendFix(f); this.lastUploadAt = t; this.lastUploadError = null; }
+    catch (e: any) { this.lastUploadError = e?.response?.status ? `HTTP ${e.response.status}` : 'no network or server'; }   // next fix retries; server shows stale meanwhile
   }
 
   private async stopCapture() {

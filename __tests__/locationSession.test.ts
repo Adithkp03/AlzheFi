@@ -103,3 +103,16 @@ test('permission denied at start: no watch, no upload, and the failure is report
   expect(p.log).not.toContain('watch');
   expect(s.lastError).toMatch(/permission/i);
 });
+
+test('status line reports the real stage: waiting, sent, failed upload, watch error (no coordinates)', async () => {
+  const p = mk(); const s = new LocationSession(p.d);
+  expect(s.statusLine()).toMatch(/not running/i);
+  await s.setOwner('pat', 'patient');
+  expect(s.statusLine()).toMatch(/waiting for the first GPS fix/i);
+  p.d.sendFix = async () => { throw { response: { status: 401 } }; };
+  p.emit(F(5)); await flush();
+  expect(s.statusLine()).toMatch(/sending failed \(HTTP 401\)/);
+  p.tick(MIN_UPLOAD_GAP_MS + 1); p.d.sendFix = async () => {};
+  p.emit(F(6)); await flush();
+  expect(s.statusLine()).toMatch(/Last sent/);
+});

@@ -65,7 +65,9 @@ export default function LocationSharingSection() {
     } catch { /* leave empty */ }
   };
   const saveZone = () => act(async () => {
-    await apiService.setZone(zoneFor!, { lat: Number(form.lat), lon: Number(form.lon), radiusM: Number(form.radiusM) });
+    const nums = [form.lat, form.lon, form.radiusM].map(v => (v.trim() === '' ? NaN : Number(v)));
+    if (nums.some(n => !Number.isFinite(n)) || (nums[0] === 0 && nums[1] === 0)) { Alert.alert('Check the safe area', 'Enter the centre latitude and longitude and the radius. 0, 0 is not a real centre.'); return; }
+    await apiService.setZone(zoneFor!, { lat: nums[0], lon: nums[1], radiusM: nums[2] });
     setZoneFor(null);
   }, 'Could not save the boundary. Check the numbers.');
 
@@ -78,6 +80,7 @@ export default function LocationSharingSection() {
         {st.role === 'patient' ? (
           <>
             <Text style={s.note}>Turn this on for a caregiver you trust. It stays on until you turn it off. They are told when you leave the safe area their primary caregiver set, and you are told when a caregiver who also shares is nearby.</Text>
+            <Text style={s.muted} testID="tracking-status">{locationSession.statusLine()}</Text>
             {st.caregivers.length === 0 && <Text style={s.muted}>No caregivers are linked to your account.</Text>}
             {st.caregivers.map(c => (
               <View key={c.caregiverId} style={s.row}>
