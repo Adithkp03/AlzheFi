@@ -8,7 +8,7 @@ import { YELLOW, DARK, MUTED, BORDER, WHITE, DANGER } from './theme';
 /**
  * Patient-side control: who may see my information. Nothing is shared until the
  * patient approves, and every caregiver can be removed at any time.
- * This screen does not share or collect location.
+ * Approval covers the categories listed in the request text only. It does not include location.
  */
 export default function CaregiverAccessSection() {
   const [links, setLinks] = useState<IncomingCareLink[] | null>(null);
@@ -71,7 +71,7 @@ export default function CaregiverAccessSection() {
                     <Text style={s.sub}>wants to be linked as your caregiver</Text>
                   </View>
                 </View>
-                <Text style={s.hint}>If you approve, they can see your reminders and memories. You can remove them any time.</Text>
+                <Text style={s.hint}>If you approve, they can: see your name, email and recent chats with the assistant; see, add, change and delete your reminders; and add memories for you. They cannot see your location. You can remove them any time.</Text>
                 <View style={s.btnRow}>
                   <TouchableOpacity disabled={busyId === l.id} style={s.btnPrimary} onPress={() => approve(l, 'primary')} accessibilityLabel={`Approve ${l.caregiverName} as primary`}>
                     <Text style={s.btnPrimaryText}>Approve as primary</Text>
@@ -86,14 +86,14 @@ export default function CaregiverAccessSection() {
               </View>
             ))}
 
-            {active.length > 0 && <Text style={s.group}>Can see your information</Text>}
+            {active.length > 0 && <Text style={s.group}>Linked caregivers</Text>}
             {active.map(l => (
               <View key={l.id} style={s.item}>
                 <View style={s.rowTop}>
                   <View style={s.avatar}><Icon name="account-check-outline" size={18} color={DARK} /></View>
                   <View style={s.info}>
                     <Text style={s.name}>{l.caregiverName}</Text>
-                    <Text style={s.sub}>{l.role === 'primary' ? 'Primary caregiver' : 'Secondary caregiver'}{l.legacy ? ' · linked before approvals' : ''}</Text>
+                    <Text style={s.sub}>{l.role === 'primary' ? 'Primary caregiver' : 'Secondary caregiver'}{l.legacy ? ' · linked before approvals existed' : ''}</Text>
                   </View>
                   <TouchableOpacity disabled={busyId === l.id} onPress={() => remove(l)} accessibilityLabel={`Remove ${l.caregiverName}`}>
                     <Text style={s.remove}>Remove</Text>
@@ -104,7 +104,7 @@ export default function CaregiverAccessSection() {
 
             {pending.length === 0 && active.length === 0 && (
               <View style={s.pad}>
-                <Text style={s.empty}>No caregivers linked. Nobody can see your information.</Text>
+                <Text style={s.empty}>No caregivers are linked to your account.</Text>
               </View>
             )}
           </>

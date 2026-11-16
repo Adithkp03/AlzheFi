@@ -48,7 +48,7 @@ export default function LinkPatientModal({ visible, onClose, onChanged }: Props)
       <View style={s.backdrop}>
         <View style={s.sheet} testID="link-patient-modal">
           <Text style={s.title}>Link a patient</Text>
-          <Text style={s.body}>Enter the email the patient signed up with. They will get a request and choose whether to approve. You see nothing until they do.</Text>
+          <Text style={s.body}>Enter the email the patient signed up with. They will get a request and choose whether to approve. You get no access until they do.</Text>
           <TextInput
             style={s.input} value={email} onChangeText={setEmail} placeholder="patient@example.com"
             placeholderTextColor={MUTED} autoCapitalize="none" autoCorrect={false} keyboardType="email-address"
