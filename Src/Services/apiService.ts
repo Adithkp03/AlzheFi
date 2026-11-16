@@ -6,7 +6,7 @@ import * as Types from '../Types';
 const API_BASE_URL = Platform.select({
   ios: 'http://localhost:3005/api',
   //android: 'http://10.0.2.2:3005/api',
-   android: 'https://project-6jva6.vercel.app/api',
+   android: 'https://alzhefi-location-test.vercel.app/api', // location test host (test accounts only)
   default: 'http://localhost:3005/api',
 });
 
