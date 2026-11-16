@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../Context/AuthContext';
 import { apiService } from '../../Services/apiService';
+import LinkPatientModal from '../../Components/CareLinks/LinkPatientModal';
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 const YELLOW = '#E3F73F';
@@ -194,6 +195,7 @@ export default function PatientsScreen() {
 
   const [patientData, setPatientData] = useState<PatientCardData[]>([]);
   const [loading,     setLoading]     = useState(true);
+  const [linkOpen,    setLinkOpen]    = useState(false);
 
   useEffect(() => {
     fetchPatients();
@@ -237,6 +239,10 @@ export default function PatientsScreen() {
           <Text style={styles.headerEyebrow}>Caregiver</Text>
           <Text style={styles.headerTitle}>My Patients</Text>
         </View>
+        <TouchableOpacity style={styles.linkBtn} onPress={() => setLinkOpen(true)} accessibilityLabel="Link a patient">
+          <Icon name="account-plus-outline" size={18} color={DARK} />
+          <Text style={styles.linkBtnText}>Link</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Accent bar */}
@@ -268,7 +274,7 @@ export default function PatientsScreen() {
           </View>
           <Text style={styles.emptyTitle}>No patients linked</Text>
           <Text style={styles.emptySubtitle}>
-            Tap Link to connect a patient to your account
+            Tap Link to ask a patient to connect. They approve before you see anything.
           </Text>
         </View>
       ) : (
@@ -281,6 +287,7 @@ export default function PatientsScreen() {
           ))}
         </ScrollView>
       )}
+      <LinkPatientModal visible={linkOpen} onClose={() => setLinkOpen(false)} onChanged={fetchPatients} />
     </SafeAreaView>
   );
 }

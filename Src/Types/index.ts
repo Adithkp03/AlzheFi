@@ -87,3 +87,22 @@ export interface LinkPatientRequest {
 export interface PatientProfile extends User {
   linkedCaregiverIds?: string[];
 }
+
+export type CareLinkRole = 'primary' | 'secondary';
+export type CareLinkStatus = 'pending' | 'active';
+
+/** Patient view of a caregiver request or active caregiver. Names only, no email. */
+export interface IncomingCareLink {
+  id: string;
+  caregiverName: string;
+  role: CareLinkRole;
+  status: CareLinkStatus;
+  legacy: boolean;
+}
+
+/** Caregiver view of their own request or link. */
+export interface OutgoingCareLink {
+  id: string;
+  role: CareLinkRole;
+  status: CareLinkStatus;
+}

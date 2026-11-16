@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../Context/AuthContext';
+import CaregiverAccessSection from '../../Components/CareLinks/CaregiverAccessSection';
 
 const YELLOW = '#E3F73F';
 const DARK   = '#1F2937';
@@ -65,7 +66,6 @@ export default function ProfileScreen() {
       items: [
         { id: 'name', icon: 'account', iconColor: '#93C5FD', label: 'Name', value: user?.name || 'N/A', hasArrow: true },
         { id: 'email', icon: 'email-outline', iconColor: '#86EFAC', label: 'Email', value: user?.email || 'N/A', hasArrow: true },
-        { id: 'caregiver', icon: 'doctor', iconColor: '#F9A8D4', label: 'Caregiver', value: 'Sarah (Wife)', hasArrow: true },
       ],
     },
     
@@ -130,6 +130,8 @@ export default function ProfileScreen() {
             </View>
           </View>
         ))}
+
+        {user?.role !== 'caregiver' && <CaregiverAccessSection />}
 
         {/* Logout Section (UI unchanged) */}
         <View style={styles.section}>

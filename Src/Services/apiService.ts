@@ -115,6 +115,29 @@ class ApiService {
     return res.data;
   }
 
+  // ---------- CARE LINKS (patient-approved) ----------
+  async requestCareLink(email: string): Promise<string> {
+    const res = await this.api.post('/care-links/request', { email });
+    return res.data.message;
+  }
+  async getIncomingCareLinks(): Promise<Types.IncomingCareLink[]> {
+    const res = await this.api.get('/care-links/incoming');
+    return res.data;
+  }
+  async getOutgoingCareLinks(): Promise<Types.OutgoingCareLink[]> {
+    const res = await this.api.get('/care-links/outgoing');
+    return res.data;
+  }
+  async approveCareLink(id: string, role: Types.CareLinkRole): Promise<void> {
+    await this.api.post(`/care-links/${id}/approve`, { role });
+  }
+  async declineCareLink(id: string): Promise<void> {
+    await this.api.post(`/care-links/${id}/decline`);
+  }
+  async revokeCareLink(id: string): Promise<void> {
+    await this.api.post(`/care-links/${id}/revoke`);
+  }
+
   async getPatientProfile(patientId: string): Promise<Types.PatientProfile> {
     const res = await this.api.get(`/caregiver/patient/${patientId}/profile`);
     return res.data;
