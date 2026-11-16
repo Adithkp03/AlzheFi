@@ -111,7 +111,7 @@ export default function LocationSharingSection() {
               <Switch value={!!st.batteryOn} disabled={busy}
                 onValueChange={v => act(() => apiService.setBatterySharing(v), 'Could not change battery alerts.')} />
             </View>
-            {st.caregivers.some(c => c.sharing) && (
+            {(st.caregivers.some(c => c.sharing) || st.batteryOn) && (
               <TouchableOpacity style={s.danger} disabled={busy} onPress={() => act(() => apiService.stopAllLocationSharing(), 'Could not turn sharing off.')}>
                 <Text style={s.dangerText}>Stop sharing with everyone</Text>
               </TouchableOpacity>
