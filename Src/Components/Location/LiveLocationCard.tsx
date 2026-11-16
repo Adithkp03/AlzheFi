@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
 import { apiService } from '../../Services/apiService';
 import { LiveLocation, Zone } from '../../Types';
 import { layoutRadar } from './radarGeometry';
@@ -50,7 +50,11 @@ export default function LiveLocationCard({ patientId }: { patientId: string }) {
           <Text style={s.live}>Updated {ago(loc.ageMs)}</Text>
           <Radar loc={loc} zone={zone} />
           <Text style={s.coord}>{loc.lat.toFixed(5)}, {loc.lon.toFixed(5)} (accuracy about {Math.round(loc.accuracyM)} m)</Text>
-          <TouchableOpacity style={s.btn} onPress={() => Linking.openURL(`geo:${loc.lat},${loc.lon}?q=${loc.lat},${loc.lon}`)}>
+          <TouchableOpacity style={s.btn} onPress={() => Alert.alert(
+            'Open in another app?',
+            'This sends the patient\'s current position to the maps app on your phone, which may share it with its own provider. Nothing is sent unless you continue.',
+            [{ text: 'Cancel', style: 'cancel' },
+             { text: 'Open', onPress: () => Linking.openURL(`geo:${loc.lat},${loc.lon}?q=${loc.lat},${loc.lon}`) }])}>
             <Text style={s.btnText}>Open in Maps</Text>
           </TouchableOpacity>
         </>
