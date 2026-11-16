@@ -26,9 +26,20 @@ jobs:
         run: |
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -1)
           "$SDKMANAGER" 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+      - name: Firebase client config (from repository secret, never committed)
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json; echo "push config present"; else echo "push config ABSENT: build has no push"; fi
       - name: Build sideload APK (debug signing, bundled JavaScript)
         working-directory: android
         run: chmod +x gradlew && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon --max-workers=2
+      - name: Verify push config is compiled into the APK
+        run: |
+          if [ -f android/app/google-services.json ]; then
+            unzip -p android/app/build/outputs/apk/release/*.apk resources.arsc > /tmp/res.arsc
+            if strings /tmp/res.arsc | grep -q "494621439127" || strings -e l /tmp/res.arsc | grep -q "494621439127"; then echo "APK contains the Firebase app id"; else echo "push config not found in APK"; exit 1; fi
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: AlzheFi-arm64-demo-apk
