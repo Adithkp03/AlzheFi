@@ -45,7 +45,11 @@ export default function LocationSharingSection() {
   const act = async (fn: () => Promise<void>, fail: string) => {
     setBusy(true);
     try { await fn(); } catch (e: any) { Alert.alert('Not done', e?.response?.data?.error ?? fail); }
-    finally { setBusy(false); await load(); locationSession.refreshCapture().catch(() => {}); }
+    finally {
+      setBusy(false); await load();
+      await locationSession.refreshCapture().catch(() => {});
+      if (locationSession.lastError) Alert.alert('Location not started', locationSession.lastError + ' Allow location for this app in Settings, then turn sharing off and on again.');
+    }
   };
 
   const openZone = async (patientId: string) => {

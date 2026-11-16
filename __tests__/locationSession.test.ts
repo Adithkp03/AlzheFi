@@ -94,3 +94,12 @@ test('a fix delivered by the OS after teardown is never uploaded under the next 
   cb!(F(7)); await flush();   // late callback from the old watch, still holding the old callback
   expect(p.log.filter(x => x === 'fix:7')).toHaveLength(0);
 });
+
+test('permission denied at start: no watch, no upload, and the failure is reported instead of swallowed', async () => {
+  const p = mk(); p.d.startForeground = async () => { throw new Error('location permission denied'); };
+  const s = new LocationSession(p.d);
+  await s.setOwner('pat', 'patient');
+  expect(s.capturing).toBe(false);
+  expect(p.log).not.toContain('watch');
+  expect(s.lastError).toMatch(/permission/i);
+});

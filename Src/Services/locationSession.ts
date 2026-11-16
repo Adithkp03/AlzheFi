@@ -38,6 +38,7 @@ export class LocationSession {
 
   get owner() { return this.ownerId; }
   get ownerRole() { return this.role; }
+  lastError: string | null = null;
   get capturing() { return this.stopWatch !== null; }
 
   /** Call whenever the signed-in user changes (null = signed out). */
@@ -79,10 +80,17 @@ export class LocationSession {
     try { want = await this.d.shouldCapture(this.role); } catch { return; }
     if (g !== this.gen) return;
     if (want && !this.stopWatch) {
-      await this.d.startForeground();
-      const stop = await this.d.watch(f => this.onFix(g, f), () => { /* OS error: no fix, server shows stale */ });
-      if (g !== this.gen) { stop(); await this.d.stopForeground(); return; }
-      this.stopWatch = stop;
+      this.lastError = null;
+      try {
+        await this.d.startForeground();
+        const stop = await this.d.watch(f => this.onFix(g, f), () => { /* OS error: no fix, server shows stale */ });
+        if (g !== this.gen) { stop(); await this.d.stopForeground(); return; }
+        this.stopWatch = stop;
+      } catch (e: any) {
+        // Say so instead of failing silently: no capture means no location is ever uploaded.
+        this.lastError = /denied/i.test(String(e?.message)) ? 'Location permission was not granted.' : 'Could not start location sharing on this phone.';
+        try { await this.d.stopForeground(); } catch { /* ignore */ }
+      }
     } else if (!want && this.stopWatch) {
       await this.stopCapture();
     }

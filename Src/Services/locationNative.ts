@@ -37,6 +37,10 @@ const deps: SessionDeps = {
     return st.role === 'caregiver' && st.mySharing;
   },
   async startForeground() {
+    // Android 14+: a location foreground service may only start once location permission is granted, so ask first.
+    const perm = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+    if (perm !== PermissionsAndroid.RESULTS.GRANTED) throw new Error('location permission denied');
+    if (Platform.OS === 'android' && Platform.Version >= 33) await PermissionsAndroid.request('android.permission.POST_NOTIFICATIONS' as any);
     registerFgService();
     await notifee.createChannel({ id: CHANNEL, name: 'Location sharing', importance: AndroidImportance.LOW });
     await notifee.displayNotification({
