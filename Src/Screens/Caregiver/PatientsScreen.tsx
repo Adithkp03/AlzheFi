@@ -1,3 +1,4 @@
+import { useAutoRefresh } from '../../Services/useAutoRefresh';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -198,13 +199,11 @@ export default function PatientsScreen() {
   const [loading,     setLoading]     = useState(true);
   const [linkOpen,    setLinkOpen]    = useState(false);
 
-  useEffect(() => {
-    fetchPatients();
-  }, []);
+  useAutoRefresh(() => { fetchPatients(true); });
 
-  const fetchPatients = async () => {
+  const fetchPatients = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const patients = await apiService.getLinkedPatients();
 
       const dataWithEvents = await Promise.all(
@@ -289,7 +288,7 @@ export default function PatientsScreen() {
           <LocationSharingSection />
         </ScrollView>
       )}
-      <LinkPatientModal visible={linkOpen} onClose={() => setLinkOpen(false)} onChanged={fetchPatients} />
+      <LinkPatientModal visible={linkOpen} onClose={() => setLinkOpen(false)} onChanged={() => fetchPatients()} />
     </SafeAreaView>
   );
 }

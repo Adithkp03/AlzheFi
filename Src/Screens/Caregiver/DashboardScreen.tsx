@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // 📦 Imports
 // ─────────────────────────────────────────────────────────────
+import { useAutoRefresh } from '../../Services/useAutoRefresh';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
@@ -115,7 +116,7 @@ export default function CaregiverDashboardScreen() {
     }
   }, []);
 
-  useEffect(() => { fetchStats(); }, [fetchStats]);
+  useAutoRefresh(() => { fetchStats(); });
 
   useFocusEffect(
     useCallback(() => { fetchStats(); }, [fetchStats])
