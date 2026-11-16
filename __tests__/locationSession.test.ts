@@ -116,3 +116,49 @@ test('status line reports the real stage: waiting, sent, failed upload, watch er
   p.emit(F(6)); await flush();
   expect(s.statusLine()).toMatch(/Last sent/);
 });
+
+describe('reconciliation', () => {
+  test('status check failure is visible and retried; capture starts once it works', async () => {
+    let fail = true; const p = mk(); p.d.shouldCapture = async () => { if (fail) throw new Error('net'); return true; };
+    const s = new LocationSession(p.d);
+    await s.setOwner('pat', 'patient');
+    expect(s.capturing).toBe(false);
+    expect(s.statusLine()).toMatch(/Could not check sharing status/);
+    fail = false; await s.refreshCapture({ auto: true });
+    expect(s.capturing).toBe(true); expect(s.lastCheckError).toBeNull();
+  });
+  test('single flight: concurrent refreshes start exactly one watch', async () => {
+    const p = mk(); const s = new LocationSession(p.d);
+    await s.setOwner('pat', 'patient'); await s.teardown().catch(() => {}); p.log.length = 0;
+    await s.setOwner('pat', 'patient');
+    await Promise.all([s.refreshCapture({ auto: true }), s.refreshCapture({ auto: true }), s.refreshCapture()]);
+    expect(p.log.filter(x => x === 'watch')).toHaveLength(1);
+  });
+  test('auto reconciliation stops after a revoke and does not restart; never retries a refused permission', async () => {
+    let grant = true; const p = mk(); p.d.shouldCapture = async () => grant;
+    const s = new LocationSession(p.d);
+    await s.setOwner('pat', 'patient'); expect(s.capturing).toBe(true);
+    grant = false; await s.refreshCapture({ auto: true }); expect(s.capturing).toBe(false);
+    expect(s.statusLine()).toMatch(/no caregiver is currently receiving/);
+    await s.refreshCapture({ auto: true }); expect(p.log.filter(x => x === 'watch')).toHaveLength(1);
+    const q = mk(); let asks = 0; q.d.startForeground = async () => { asks++; throw new Error('location permission denied'); };
+    const s2 = new LocationSession(q.d); await s2.setOwner('pat', 'patient');
+    await s2.refreshCapture({ auto: true }); await s2.refreshCapture({ auto: true });
+    expect(asks).toBe(1); expect(s2.statusLine()).toMatch(/permission was not granted/);
+    await s2.refreshCapture(); expect(asks).toBe(2);   // only an explicit action asks again
+  });
+  test('sign-out during a status check never starts capture for the old owner', async () => {
+    let release: (v: boolean) => void = () => {}; const p = mk(); p.d.shouldCapture = () => new Promise<boolean>(r => { release = r; });
+    const s = new LocationSession(p.d);
+    const setup = s.setOwner('pat', 'patient');
+    await flush(); await flush();
+    const out = s.teardown(); release(true); await Promise.all([setup, out]); await flush();
+    expect(p.log).not.toContain('watch'); expect(s.capturing).toBe(false);
+  });
+  test('prolonged no-fix says so honestly; a fix replaces it; thresholds untouched', async () => {
+    const p = mk(); const s = new LocationSession(p.d); await s.setOwner('pat', 'patient');
+    expect(s.statusLine()).toMatch(/Waiting for the first GPS fix/);
+    p.tick(61_000); expect(s.statusLine()).toMatch(/Still no GPS fix after 61s/);
+    p.emit(F(1)); await flush(); expect(s.statusLine()).toMatch(/GPS fix 0s ago/);
+  });
+});

@@ -1,4 +1,4 @@
-import { PermissionsAndroid, Platform } from 'react-native';
+import { PermissionsAndroid, Platform, AppState } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import notifee, { AndroidImportance, AndroidForegroundServiceType } from '@notifee/react-native';
 import { getMessaging, getToken, deleteToken, onMessage, onTokenRefresh, onNotificationOpenedApp, getInitialNotification } from '@react-native-firebase/messaging';
@@ -67,6 +67,8 @@ const deps: SessionDeps = {
 };
 
 export const locationSession = new LocationSession(deps);
+
+AppState.addEventListener('change', st => { if (st === 'active') locationSession.refreshCapture({ auto: true }).catch(() => {}); });
 
 apiService.beforeLogout = () => locationSession.teardown();
 

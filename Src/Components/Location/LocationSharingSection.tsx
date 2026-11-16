@@ -25,6 +25,8 @@ export default function LocationSharingSection() {
   const load = useCallback(async () => {
     try { setSt(await apiService.getSharingStatus()); setOff(false); }
     catch (e: any) { if (e?.response?.status === 404) setOff(true); }
+    // Reconcile the phone's tracker with the server's consent state (starts only with an active grant, stops when revoked).
+    locationSession.refreshCapture({ auto: true }).catch(() => {});
   }, []);
   useEffect(() => {
     load();
