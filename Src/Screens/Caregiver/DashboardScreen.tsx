@@ -163,12 +163,12 @@ export default function CaregiverDashboardScreen() {
     setLinkError('');
     setLinkSuccess('');
     try {
-      await apiService.linkPatient(email);
-      setLinkSuccess('Patient linked successfully! 🎉');
+      const notice = await apiService.requestCareLink(email);
+      setLinkSuccess(notice || 'Request sent. The patient must approve it.');
       setLinkEmail('');
       fetchStats();
     } catch (err: any) {
-      const msg = err?.response?.data?.message || 'Could not link patient. Please try again.';
+      const msg = err?.response?.data?.error || err?.response?.data?.message || 'Could not send the request. Please try again.';
       setLinkError(msg);
     } finally {
       setLinkLoading(false);
