@@ -56,7 +56,7 @@ const deps: SessionDeps = {
   async watch(onFix, onError) {
     const perm = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
     if (perm !== PermissionsAndroid.RESULTS.GRANTED) throw new Error('location permission denied');
-    Geolocation.setRNConfiguration({ skipPermissionRequests: true, authorizationLevel: 'whenInUse', locationProvider: 'auto' });
+    Geolocation.setRNConfiguration({ skipPermissionRequests: true, authorizationLevel: 'whenInUse', locationProvider: 'playServices' });
     const id = Geolocation.watchPosition(
       p => onFix({ lat: p.coords.latitude, lon: p.coords.longitude, accuracyM: p.coords.accuracy ?? 9999, recordedAt: p.timestamp }),
       onError,
