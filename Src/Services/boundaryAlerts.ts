@@ -7,9 +7,20 @@ const ids = /^[a-f0-9]{24}$/i;
 const seen = new Set<string>();
 const listeners = new Set<(event: BoundaryEvent) => void>();
 export const boundaryAlerts = { subscribe(fn: (event: BoundaryEvent) => void) { listeners.add(fn); return () => { listeners.delete(fn); }; } };
-export async function fullScreenAllowed(): Promise<boolean> { try { return !!(await NativeModules.BoundaryAlertAccess?.status()); } catch { return false; } }
+async function preferenceKey(): Promise<string | null> {
+  try { const u=JSON.parse(await AsyncStorage.getItem('user') ?? 'null');return u?.role==='caregiver' && (u.id ?? u._id) ? `fullScreenBoundary:${u.id ?? u._id}` : null; } catch { return null; }
+}
+export async function fullScreenAllowed(): Promise<boolean> {
+  try { const key=await preferenceKey();return !!key && await AsyncStorage.getItem(key)==='enabled' && !!(await NativeModules.BoundaryAlertAccess?.status()); } catch { return false; }
+}
 export async function notificationsEnabled(): Promise<boolean> { try { return !!(await NativeModules.BoundaryAlertAccess?.notificationsEnabled()); } catch { return false; } }
-export function openFullScreenSettings() { NativeModules.BoundaryAlertAccess?.openSettings(); }
+export async function openFullScreenSettings() {
+  const key=await preferenceKey();if(!key)return;
+  // Called only after the caregiver's explicit confirmation in the UI.
+  await AsyncStorage.setItem(key,'enabled');NativeModules.BoundaryAlertAccess?.openSettings();
+}
+export async function disableFullScreenAlerts() { const key=await preferenceKey();if(key)await AsyncStorage.removeItem(key); }
+
 
 /** Called from both FCM foreground and background handlers. A push is never proof of access. */
 export async function receiveBoundaryAlert(data: any): Promise<boolean> {

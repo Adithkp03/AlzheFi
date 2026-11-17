@@ -6,7 +6,7 @@ import { apiService } from '../../Services/apiService';
 import { SharingStatus, BatteryReading } from '../../Types';
 import { locationSession, batteryReporter } from '../../Services/locationNative';
 import { pushFocus } from '../../Services/pushFocus';
-import { fullScreenAllowed, notificationsEnabled, openFullScreenSettings } from '../../Services/boundaryAlerts';
+import { fullScreenAllowed, notificationsEnabled, openFullScreenSettings, disableFullScreenAlerts } from '../../Services/boundaryAlerts';
 import LiveLocationCard from './LiveLocationCard';
 import { YELLOW, DARK, MUTED, BORDER, WHITE, DANGER } from '../CareLinks/theme';
 
@@ -155,7 +155,8 @@ export default function LocationSharingSection() {
           <>
             {!notificationsOn && <Text style={s.note}>Android notifications are disabled for this app. Enable notifications in Android Settings for background alerts.</Text>}
             <Text style={s.note}>Full-screen boundary alerts: {fsi ? 'locked-screen access enabled' : 'locked-screen access not enabled'}. With this app open, an in-app full-screen alert is available. When using another app, Android may show a heads-up notification instead. Delivery is not guaranteed.</Text>
-            <TouchableOpacity style={s.btn} onPress={() => Alert.alert('Full-screen alert access', 'Optional: allow AlzheFi to show a boundary alert over the locked screen. Normal notifications remain the fallback. You can turn this off in Android Settings.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Android Settings', onPress: openFullScreenSettings }])}><Text style={s.btnText}>Manage full-screen alert access</Text></TouchableOpacity>
+            <TouchableOpacity style={s.btn} onPress={() => Alert.alert('Full-screen alert access', 'Optional: allow AlzheFi to show a boundary alert over the locked screen. Normal notifications remain the fallback. You can turn this off in Android Settings.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Enable and open settings', onPress: () => { openFullScreenSettings().then(() => fullScreenAllowed().then(setFsi)).catch(() => {}); } }])}><Text style={s.btnText}>Manage full-screen alert access</Text></TouchableOpacity>
+            {fsi && <TouchableOpacity onPress={() => { disableFullScreenAlerts().then(() => setFsi(false)); }}><Text style={s.note}>Turn off locked-screen full-screen alerts</Text></TouchableOpacity>}
             <View style={s.row}>
               <View style={{ flex: 1 }}>
                 <Text style={s.name}>Share my location for "nearby" alerts</Text>
