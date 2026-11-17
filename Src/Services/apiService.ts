@@ -13,6 +13,16 @@ const API_BASE_URL = Platform.select({
 // This APK deliberately targets the isolated location host, which has no reminder routes.
 export const LOCATION_TEST_BUILD = API_BASE_URL?.includes('alzhefi-location-test.vercel.app') ?? false;
 export const CARE_READ_TIMEOUT_MS = 12000;
+export const CARE_BUILD_LABEL = 'Location test v7';
+
+// Fixed categories only. Never render server error bodies, URLs, user ids or tokens.
+export function careReadFailure(error: any): string {
+  const status = Number(error?.response?.status);
+  if (Number.isInteger(status) && status > 0) return `HTTP ${status}`;
+  if (error?.code === 'ECONNABORTED' || error?.code === 'ETIMEDOUT') return 'Request timed out';
+  if (error?.code === 'INVALID_PATIENT_LIST') return 'Invalid server response';
+  return 'Request did not complete';
+}
 
 /**
  * True only when the server rejected the token the request actually presented.
@@ -151,6 +161,7 @@ class ApiService {
   // ---------- CAREGIVER ----------
   async getLinkedPatients(): Promise<Types.User[]> {
     const res = await this.api.get('/caregiver/patients', { timeout: CARE_READ_TIMEOUT_MS });
+    if (!Array.isArray(res.data?.patients)) throw Object.assign(new Error('Invalid patient list'), { code: 'INVALID_PATIENT_LIST' });
     return res.data.patients;
   }
   async getPatientEvents(patientId: string): Promise<Types.Event[]> {

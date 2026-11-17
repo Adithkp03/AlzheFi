@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../Context/AuthContext';
-import { apiService, LOCATION_TEST_BUILD } from '../../Services/apiService';
+import { apiService, LOCATION_TEST_BUILD, careReadFailure, CARE_BUILD_LABEL } from '../../Services/apiService';
 import LinkPatientModal from '../../Components/CareLinks/LinkPatientModal';
 import LocationSharingSection from '../../Components/Location/LocationSharingSection';
 
@@ -204,6 +204,7 @@ export default function PatientsScreen() {
   const [loading,     setLoading]     = useState(true);
   const [linkOpen,    setLinkOpen]    = useState(false);
 
+  const [lastChecked, setLastChecked] = useState<number | null>(null);
   const [error, setError] = useState('');
   const inFlight = useRef(false);
   const generation = useRef(0);
@@ -220,7 +221,7 @@ export default function PatientsScreen() {
       // Show the approved list and mount location controls immediately. Reminders
       // must never hold the entire screen behind their own network requests.
       setPatientData(patients.map(patient => ({ patient, events: [], eventsState: LOCATION_TEST_BUILD ? 'unavailable' : 'loading' })));
-      setError(''); setLoading(false);
+      setError(''); setLastChecked(Date.now()); setLoading(false);
       if (!LOCATION_TEST_BUILD) {
         await Promise.all(patients.map(async patient => {
           let events: Event[] = [], eventsState: PatientCardData['eventsState'] = 'ready';
@@ -229,8 +230,14 @@ export default function PatientsScreen() {
           if (gen === generation.current) setPatientData(old => old.map(d => d.patient._id === patient._id ? { ...d, events, eventsState } : d));
         }));
       }
-    } catch {
-      if (gen === generation.current) { setPatientData([]); setError('Could not load patients. Check your connection and try again.'); }
+    } catch (e: any) {
+      if (gen === generation.current) {
+        // A failed revalidation is not an empty list. Keep the prior snapshot
+        // only in component memory, but hide all patient details/location and
+        // edits until the server confirms access again. Denials discard it.
+        if (e?.response?.status === 401 || e?.response?.status === 403) { setPatientData([]); setLastChecked(null); }
+        setError(`Could not verify the patient list. ${careReadFailure(e)}. Patient details and location are hidden until a successful check.`);
+      }
     } finally {
       inFlight.current = false;
       if (gen === generation.current) setLoading(false);
@@ -249,6 +256,7 @@ export default function PatientsScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerEyebrow}>Caregiver</Text>
+          <Text style={{ color: DARK, fontSize: 12 }}>{CARE_BUILD_LABEL}</Text>
           <Text style={styles.headerTitle}>My Patients</Text>
         </View>
         <TouchableOpacity style={styles.linkBtn} onPress={() => setLinkOpen(true)} accessibilityLabel="Link a patient">
@@ -267,11 +275,11 @@ export default function PatientsScreen() {
       <View style={styles.statsRow}>
         <View style={styles.statChip}>
           <Icon name="account-outline" size={14} color={DARK} />
-          <Text style={styles.statChipText}>{patientData.length} Patients</Text>
+          <Text style={styles.statChipText}>{error ? 'Patients unverified' : loading ? 'Checking patients' : `${patientData.length} Patients`}</Text>
         </View>
         <View style={styles.statChip}>
           <Icon name="bell-outline" size={14} color={DARK} />
-          <Text style={styles.statChipText}>{patientData.some(d => d.eventsState !== 'ready') ? 'Reminders unavailable' : `${totalToday} Today`}</Text>
+          <Text style={styles.statChipText}>{LOCATION_TEST_BUILD || error ? 'Reminders unavailable' : `${totalToday} Today`}</Text>
         </View>
       </View>
 
@@ -280,8 +288,9 @@ export default function PatientsScreen() {
           <ActivityIndicator size="large" color={DARK} />
         </View>
       ) : error ? (
-        <View style={styles.emptyState}><Text style={styles.emptySubtitle}>{error}</Text>
-          <TouchableOpacity accessibilityLabel="Retry patients" onPress={() => { setLoading(true); fetchPatients(); }}><Text>Retry</Text></TouchableOpacity>
+        <View style={styles.emptyState}><Text style={[styles.emptySubtitle, { color: DARK }]}>{error}</Text>
+          {!!lastChecked && <Text style={{ color: DARK, textAlign: 'center', padding: 12 }}>Last successful check: {new Date(lastChecked).toLocaleTimeString()}. This is not a confirmed empty list.</Text>}
+          <TouchableOpacity style={{ backgroundColor: YELLOW, paddingVertical: 12, paddingHorizontal: 24, minWidth: 120, alignItems: 'center', borderRadius: 12, marginTop: 16 }} accessibilityRole="button" accessibilityLabel="Retry patients" onPress={() => { fetchPatients(); }}><Text style={{ color: DARK, fontWeight: '700', flexShrink: 0 }}>Retry</Text></TouchableOpacity>
         </View>
       ) : patientData.length === 0 ? (
         <View style={styles.emptyState}>

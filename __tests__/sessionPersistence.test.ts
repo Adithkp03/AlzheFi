@@ -95,3 +95,11 @@ test('AxiosHeaders-style get() is honored when deciding whether a token was pres
   };
   expect(isPresentedTokenRejected(withGetEmpty)).toBe(false);
 });
+
+test('caregiver-read diagnostics expose only fixed failure categories', () => {
+ const { careReadFailure }=require('../Src/Services/apiService');
+ expect(careReadFailure({ response:{ status:304,data:{token:'private'} } })).toBe('HTTP 304');
+ expect(careReadFailure({ code:'ECONNABORTED',message:'private URL' })).toBe('Request timed out');
+ expect(careReadFailure({ code:'INVALID_PATIENT_LIST' })).toBe('Invalid server response');
+ expect(careReadFailure({ message:'secret' })).toBe('Request did not complete');
+});

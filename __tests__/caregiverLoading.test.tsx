@@ -1,6 +1,6 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
-import { TextInput, TouchableOpacity, Text, Alert } from 'react-native';
+import { TextInput, TouchableOpacity, Text, Alert, AppState } from 'react-native';
 import PatientsScreen from '../Src/Screens/Caregiver/PatientsScreen';
 import LocationSharingSection from '../Src/Components/Location/LocationSharingSection';
 jest.mock('../Src/Context/AuthContext', () => ({ useAuth: () => ({ state: { user: { id: 'cg' } } }) }));
@@ -9,7 +9,7 @@ jest.mock('react-native-vector-icons/MaterialCommunityIcons', () => 'Icon');
 jest.mock('../Src/Components/CareLinks/LinkPatientModal', () => () => null);
 jest.mock('../Src/Components/Location/LiveLocationCard', () => () => null);
 jest.mock('../Src/Services/locationNative', () => ({ locationSession: { ensurePushRegistered: jest.fn(async () => {}), refreshCapture: jest.fn(async () => {}), pushStatus: 'registered' }, batteryReporter: { reconcile: jest.fn(async () => {}) } }));
-jest.mock('../Src/Services/apiService', () => ({ LOCATION_TEST_BUILD: true, apiService: { getLinkedPatients: jest.fn(), getPatientEvents: jest.fn(), getSharingStatus: jest.fn(), getBattery: jest.fn(), getZone: jest.fn(), getLiveLocation: jest.fn(), setZone: jest.fn() } }));
+jest.mock('../Src/Services/apiService', () => ({ LOCATION_TEST_BUILD: true, CARE_BUILD_LABEL: 'Location test v7', careReadFailure: () => 'Request timed out', apiService: { getLinkedPatients: jest.fn(), getPatientEvents: jest.fn(), getSharingStatus: jest.fn(), getBattery: jest.fn(), getZone: jest.fn(), getLiveLocation: jest.fn(), setZone: jest.fn() } }));
 const { apiService: api } = require('../Src/Services/apiService');
 const flush = () => act(async () => { await new Promise(r => setImmediate(r)); });
 const deferred = () => { let resolve!: (v: any) => void; let reject!: (v: any) => void; const promise = new Promise((a,b) => { resolve=a;reject=b; }); return { promise, resolve, reject }; };
@@ -18,6 +18,8 @@ const press = async (t: renderer.ReactTestRenderer, label: string) => { const el
 let t: renderer.ReactTestRenderer;
 beforeEach(() => {
  jest.clearAllMocks();
+ Object.values(api).forEach((f: any) => f.mockReset());
+ Object.defineProperty(AppState, 'currentState', { value: 'active', configurable: true });
  api.getLinkedPatients.mockResolvedValue([{ _id: 'p', name: 'Test Patient', email: '', role: 'patient' }]);
  api.getSharingStatus.mockResolvedValue({ role: 'caregiver', mySharing: false, patients: [{ patientId: 'p', patientName: 'Test Patient', role: 'primary', canSetBoundary: true, patientSharing: true }] });
  api.getZone.mockResolvedValue({ lat: 10, lon: 76, radiusM: 300 });
@@ -34,7 +36,7 @@ test('test host list appears without waiting for or requesting unavailable remin
 test('patient read failure is an explicit retry state, not no-patients', async () => {
  api.getLinkedPatients.mockRejectedValue(new Error('timeout'));
  await act(async () => { t=renderer.create(<PatientsScreen />); }); await flush();
- expect(treeText(t)).toContain('Could not load patients'); expect(treeText(t)).not.toContain('No patients linked');
+ expect(treeText(t)).toContain('Could not verify the patient list'); expect(treeText(t)).not.toContain('No patients linked');
 });
 test('slow patient read does not overlap on refresh', async () => {
  jest.useFakeTimers(); api.getLinkedPatients.mockReturnValue(new Promise(() => {}));
@@ -75,4 +77,29 @@ test('cancelled late zone read cannot refill a closed form', async () => {
  const zone=deferred(); api.getZone.mockReturnValue(zone.promise);
  await act(async () => { t=renderer.create(<LocationSharingSection />); }); await flush(); await press(t,'Set safe area'); await press(t,'Cancel');
  await act(async () => zone.resolve({ lat: 10,lon:76,radiusM:200 })); expect(t.root.findAllByType(TextInput)).toHaveLength(0);
+});
+
+test('a failed refresh is not an empty list, hides protected details and recovers on success', async () => {
+ jest.useFakeTimers();
+ await act(async () => { t=renderer.create(<PatientsScreen />); });
+ expect(treeText(t)).toContain('Test Patient');
+ api.getLinkedPatients.mockRejectedValueOnce(Object.assign(new Error('timeout'), { code: 'ECONNABORTED' }));
+ await act(async () => { jest.advanceTimersByTime(8000); });
+ expect(treeText(t)).toContain('Patients unverified'); expect(treeText(t)).toContain('Last successful check');
+ expect(treeText(t)).not.toContain('Test Patient'); expect(treeText(t)).not.toContain('No patients linked');
+ await act(async () => { jest.advanceTimersByTime(8000); });
+ expect(treeText(t)).toContain('Test Patient'); expect(treeText(t)).not.toContain('Patients unverified');
+});
+test('a confirmed empty refreshed list removes the patient immediately', async () => {
+ jest.useFakeTimers(); await act(async () => { t=renderer.create(<PatientsScreen />); });
+ api.getLinkedPatients.mockResolvedValueOnce([]);
+ await act(async () => { jest.advanceTimersByTime(8000); });
+ expect(treeText(t)).toContain('No patients linked'); expect(treeText(t)).not.toContain('Test Patient');
+});
+test('authorization denial discards the last successful list snapshot', async () => {
+ jest.useFakeTimers(); await act(async () => { t=renderer.create(<PatientsScreen />); });
+ api.getLinkedPatients.mockRejectedValueOnce({ response: { status: 403 } });
+ await act(async () => { jest.advanceTimersByTime(8000); });
+ expect(treeText(t)).not.toContain('Test Patient'); expect(treeText(t)).not.toContain('Last successful check');
+ expect(treeText(t)).toContain('Patients unverified');
 });
