@@ -37,6 +37,26 @@ export function isPresentedTokenRejected(error: AxiosError): boolean {
   );
 }
 
+/**
+ * Ends the stored session for a rejected presented token. Returns true when it
+ * cleared. Clears only when the rejected token is still the stored one: a late
+ * 401 for an old in-flight request must not wipe a session that has since been
+ * replaced by a fresh sign-in.
+ */
+export async function clearRejectedSession(error: AxiosError): Promise<boolean> {
+  if (!isPresentedTokenRejected(error)) return false;
+  const headers: any = error.config?.headers;
+  const presented = String(
+    headers?.Authorization ?? headers?.authorization ?? headers?.get?.('Authorization') ?? '',
+  ).replace(/^Bearer\s+/i, '');
+  const stored = await AsyncStorage.getItem('userToken');
+  if (stored && stored === presented) {
+    await AsyncStorage.multiRemove(['userToken', 'user']);
+    return true;
+  }
+  return false;
+}
+
 class ApiService {
   private api: AxiosInstance;
 
@@ -57,9 +77,7 @@ class ApiService {
     this.api.interceptors.response.use(
     res => res,
     async (error: AxiosError) => {
-      if (isPresentedTokenRejected(error)) {
-        await AsyncStorage.multiRemove(['userToken', 'user']);
-      }
+      await clearRejectedSession(error);
       return Promise.reject(error);
     }
   );
