@@ -10,6 +10,8 @@ export interface RadarLayout {
   patient: { x: number; y: number; accR: number };
   metersPerPx: number;
   scaleLabel: string;
+  scaleBarPx: number;
+  distanceM: number | null;
   patientOutside: boolean | null;
 }
 
@@ -32,6 +34,8 @@ export function layoutRadar(
     zone: zone ? { cx: half, cy: half, r: zone.radiusM / mpp } : null,
     patient: { x: px, y: py, accR: Math.max(3, patient.accuracyM / mpp) },
     metersPerPx: mpp,
+    scaleBarPx: bar/mpp,
+    distanceM: zone ? Math.hypot(p.dx,p.dy) : null,
     scaleLabel: bar >= 1000 ? `${bar / 1000} km` : `${bar} m`,
     patientOutside: zone ? Math.hypot(p.dx, p.dy) > zone.radiusM : null,
   };

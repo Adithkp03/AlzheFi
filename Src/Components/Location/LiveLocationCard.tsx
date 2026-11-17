@@ -108,8 +108,15 @@ function Radar({ loc, zone }: { loc: Extract<LiveLocation, { status: 'live' }>; 
         <View style={[r.dot, { left: l.patient.x - 6, top: l.patient.y - 6, backgroundColor: out ? DANGER : DARK }]} />
         <Text style={r.n}>N</Text>
       </View>
+      <View style={{alignSelf:'stretch',marginTop:8}}>
+        {zone && <><Text style={s.live}>Saved boundary radius: {zone.radiusM} m</Text><Text style={s.coord}>Patient distance from centre: about {Math.round(l.distanceM!)} m</Text><Text style={s.muted}>Radius is centre to edge. GPS accuracy: about {Math.round(loc.accuracyM)} m. Distance alone does not confirm an alert.</Text></>}
+        <View style={{alignItems:'center',marginVertical:8}} accessibilityLabel={`Radar scale: this line represents ${l.scaleLabel}`}>
+          <View style={{width:l.scaleBarPx,height:8,borderBottomWidth:2,borderLeftWidth:2,borderRightWidth:2,borderColor:DARK}} />
+          <Text style={s.coord}>Scale line: {l.scaleLabel}</Text>
+        </View>
+      </View>
       <Text style={s.muted}>
-        {l.patientOutside === null ? 'No safe area set.' : out ? 'Position is outside the safe-area circle. This alone does not mean an alert was sent.' : 'Inside the safe area.'}  Bar: {l.scaleLabel}. Not a street map.
+        {l.patientOutside === null ? 'No safe area set.' : out ? 'Position is outside the safe-area circle. This alone does not mean an alert was sent.' : 'Inside the safe area.'} Not a street map. Scale changes to fit the position and saved boundary.
       </Text>
     </View>
   );

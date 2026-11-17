@@ -22,3 +22,5 @@ test('no zone: patient centred, outside unknown', () => {
 test('metersBetween is roughly 111 km per degree latitude', () => {
   expect(metersBetween({ lat: 0, lon: 0 }, { lat: 1, lon: 0 }).dy).toBeCloseTo(111_320, -2);
 });
+
+test('scale line and saved-centre distance reflect actual projection not radius',()=>{const l=layoutRadar({lat:10+400/111320,lon:76,accuracyM:100},{lat:10,lon:76,radiusM:100},220);expect(l.distanceM).toBeCloseTo(400);expect(l.scaleBarPx*l.metersPerPx).toBeCloseTo(200);expect(l.scaleLabel).toBe('200 m');expect(l.zone!.r*l.metersPerPx).toBeCloseTo(100);});
