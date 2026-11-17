@@ -18,8 +18,9 @@ function ago(ms: number) {
  * Caregiver live view for one patient. Polls only while mounted and the app is showing it.
  * Coordinates are shown only when the server says the fix is live; stale or unknown never shows a position.
  */
-export default function LiveLocationCard({ patientId }: { patientId: string }) {
+export default function LiveLocationCard({ patientId, zoneVersion = 0 }: { patientId: string; zoneVersion?: number }) {
   const [loc, setLoc] = useState<LiveLocation | null>(null);
+  const [boundary, setBoundary] = useState<any>(null);
   const [err, setErr] = useState(false);
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [zone, setZone] = useState<Zone | null>(null);
@@ -27,19 +28,25 @@ export default function LiveLocationCard({ patientId }: { patientId: string }) {
 
   useEffect(() => {
     alive.current = true;
+    let active = true, inFlight = false;
     setLoc(null); setZone(null);
-    apiService.getZone(patientId).then(z => { if (alive.current) setZone(z); }).catch(() => {});
+    apiService.getZone(patientId).then(z => { if (active) setZone(z); }).catch(() => {});
     const tick = async () => {
+      if (inFlight) return;
+      inFlight = true;
       try {
         const r = await apiService.getLiveLocation(patientId);
-        if (!alive.current) return;
+        if (!active) return;
         setLoc(r); setErr(false); setFetchedAt(Date.now());
-      } catch { if (alive.current) { setErr(true); setLoc(null); } }  // never keep an old position on error
+        try { const b = await apiService.getBoundaryDiagnostic(patientId); if (active) setBoundary(b); }
+        catch { if (active) setBoundary(null); }
+      } catch { if (active) { setErr(true); setLoc(null); setBoundary(null); } }  // never keep an old position on error
+      finally { inFlight = false; }
     };
     tick();
     const id = setInterval(tick, LIVE_POLL_MS);
-    return () => { alive.current = false; clearInterval(id); };
-  }, [patientId]);
+    return () => { active = false; alive.current = false; clearInterval(id); };
+  }, [patientId, zoneVersion]);
 
   return (
     <View style={s.card}>
@@ -62,6 +69,13 @@ export default function LiveLocationCard({ patientId }: { patientId: string }) {
       {!err && loc?.status === 'stale' && <Text style={s.stale}>Stale: last update was {ago(loc.ageMs)}. The position is hidden because it may be out of date.</Text>}
       {!err && loc?.status === 'unknown' && <Text style={s.muted}>No location received yet.</Text>}
       {!err && !loc && <Text style={s.muted}>Checking...</Text>}
+      {boundary && <Text testID="boundary-status" style={s.muted}>
+        {boundary.position === 'unknown' ? 'Alert check: position is uncertain or not recent enough. No confirmed exit.'
+          : boundary.position === 'inside' ? 'Alert check: inside the safe area.'
+          : !boundary.armed ? 'Alert check: this exit was already confirmed. Re-entry is needed before another exit alert.'
+          : `Alert check: waiting for confirmation (${boundary.outsideCount}/${boundary.requiredFixes} fixes, ${Math.floor(boundary.outsideSpanMs / 1000)}/${boundary.requiredSpanMs / 1000}s).`}
+      </Text>}
+      <Text style={s.muted}>Exit alerts need sufficiently accurate outside fixes spanning at least 60 seconds. Push delivery is not guaranteed. This test app is not an emergency monitor.</Text>
       <Text style={s.muted}>Refreshes about every {LIVE_POLL_MS / 1000}s while this screen is open{fetchedAt ? '' : ''}. Not guaranteed continuous.</Text>
     </View>
   );
@@ -95,7 +109,7 @@ function Radar({ loc, zone }: { loc: Extract<LiveLocation, { status: 'live' }>; 
         <Text style={r.n}>N</Text>
       </View>
       <Text style={s.muted}>
-        {l.patientOutside === null ? 'No safe area set.' : out ? 'Outside the safe area.' : 'Inside the safe area.'}  Bar: {l.scaleLabel}. Not a street map.
+        {l.patientOutside === null ? 'No safe area set.' : out ? 'Position is outside the safe-area circle. This alone does not mean an alert was sent.' : 'Inside the safe area.'}  Bar: {l.scaleLabel}. Not a street map.
       </Text>
     </View>
   );

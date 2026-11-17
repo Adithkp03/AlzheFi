@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { AppState } from 'react-native';
 import { careLinkEvents, AUTO_REFRESH_MS } from '../../Services/careLinkEvents';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
@@ -20,10 +20,18 @@ export default function LocationSharingSection() {
   const [off, setOff] = useState(false);          // feature disabled on server
   const [busy, setBusy] = useState(false);
   const [batt, setBatt] = useState<Record<string, BatteryReading>>({});
+  const loadInFlight = useRef(false);
+  const zoneRequest = useRef(0);
+  const [zoneLoading, setZoneLoading] = useState(false);
+  const [zoneError, setZoneError] = useState('');
+  const [saved, setSaved] = useState('');
+  const [zoneVersion, setZoneVersion] = useState(0);
   const [zoneFor, setZoneFor] = useState<string | null>(null);
   const [form, setForm] = useState({ lat: '', lon: '', radiusM: '300' });
 
   const load = useCallback(async () => {
+    if (loadInFlight.current) return;
+    loadInFlight.current = true;
     try {
       const next = await apiService.getSharingStatus(); setSt(next); setOff(false);
       if (next.role === 'caregiver') {
@@ -31,7 +39,9 @@ export default function LocationSharingSection() {
         setBatt(Object.fromEntries(entries));
       }
     }
-    catch (e: any) { if (e?.response?.status === 404) setOff(true); }
+    catch (e: any) { if (e?.response?.status === 404) setOff(true); else setSt(null); }
+    finally { loadInFlight.current = false; }
+    locationSession.ensurePushRegistered().catch(() => {});
     batteryReporter.reconcile().catch(() => {});
     // Reconcile the phone's tracker with the server's consent state (starts only with an active grant, stops when revoked).
     locationSession.refreshCapture({ auto: true }).catch(() => {});
@@ -62,30 +72,48 @@ export default function LocationSharingSection() {
     }
   };
 
+  useEffect(() => () => { zoneRequest.current++; }, []);
   const openZone = async (patientId: string) => {
-    setZoneFor(patientId);
-    try {
-      const z = await apiService.getZone(patientId);
-      if (z) { setForm({ lat: String(z.lat), lon: String(z.lon), radiusM: String(z.radiusM) }); return; }
-    } catch { /* keep defaults */ }
-    // No boundary yet: start from the patient's latest fix, only if it is fresh (live). Never a stale position.
-    try {
-      const l: any = await apiService.getLiveLocation(patientId);
-      if (l?.status === 'live') setForm(f => ({ ...f, lat: l.lat.toFixed(5), lon: l.lon.toFixed(5) }));
-    } catch { /* leave empty */ }
+    const request = ++zoneRequest.current;
+    setZoneFor(patientId); setZoneLoading(true); setZoneError(''); setSaved('');
+    setForm({ lat: '', lon: '', radiusM: '300' });
+    // Read in parallel. Do not let a slow zone request postpone the live read.
+    const [zone, live] = await Promise.allSettled([
+      apiService.getZone(patientId), apiService.getLiveLocation(patientId),
+    ]);
+    if (request !== zoneRequest.current) return;
+    if (zone.status === 'rejected') {
+      // Never overwrite an existing boundary just because its read failed.
+      setZoneError('Could not read the saved safe area. Retry before editing.');
+    } else if (zone.value) {
+      const z = zone.value;
+      setForm({ lat: String(z.lat), lon: String(z.lon), radiusM: String(z.radiusM) });
+    } else if (live.status === 'fulfilled' && live.value.status === 'live') {
+      setForm({ lat: live.value.lat.toFixed(5), lon: live.value.lon.toFixed(5), radiusM: '300' });
+    }
+    setZoneLoading(false);
   };
-  const saveZone = () => act(async () => {
+  const saveZone = async () => {
+    if (busy || zoneLoading || zoneError || !zoneFor) return;
     const nums = [form.lat, form.lon, form.radiusM].map(v => (v.trim() === '' ? NaN : Number(v)));
-    if (nums.some(n => !Number.isFinite(n)) || (nums[0] === 0 && nums[1] === 0)) { Alert.alert('Check the safe area', 'Enter the centre latitude and longitude and the radius. 0, 0 is not a real centre.'); return; }
-    await apiService.setZone(zoneFor!, { lat: nums[0], lon: nums[1], radiusM: nums[2] });
-    setZoneFor(null);
-  }, 'Could not save the boundary. Check the numbers.');
+    if (nums.some(n => !Number.isFinite(n)) || Math.abs(nums[0]) > 90 || Math.abs(nums[1]) > 180 || nums[2] < 100 || nums[2] > 5000 || (nums[0] === 0 && nums[1] === 0)) {
+      Alert.alert('Check the safe area', 'Enter a valid latitude, longitude and radius from 100 to 5000 metres. 0, 0 is not a real centre.'); return;
+    }
+    const id = zoneFor, request = zoneRequest.current;
+    setBusy(true); setSaved('');
+    try {
+      await apiService.setZone(id, { lat: nums[0], lon: nums[1], radiusM: nums[2] });
+      if (request === zoneRequest.current) { setZoneFor(null); setSaved('Safe area saved.'); setZoneVersion(v => v + 1); }
+    } catch { Alert.alert('Not saved', 'Could not confirm the safe-area save. Reopen it to check the saved values before trying again.'); }
+    finally { setBusy(false); }
+  };
 
   if (off || !st) return st === null && !off ? <View style={s.pad}><ActivityIndicator color={DARK} /></View> : null;
 
   return (
     <View style={s.section} testID="location-sharing">
       <Text style={s.title}>Location sharing</Text>
+      <Text style={s.note} testID="push-status">{locationSession.pushStatus}</Text>
       <View style={s.card}>
         {st.role === 'patient' ? (
           <>
@@ -127,6 +155,7 @@ export default function LocationSharingSection() {
               <Switch value={st.mySharing} disabled={busy}
                 onValueChange={v => act(() => apiService.setCaregiverSharing(v), 'Could not change sharing.')} />
             </View>
+            {!!saved && <Text accessibilityRole="alert" style={s.note}>{saved}</Text>}
             {[...st.patients].sort((a, b) => Number(b.patientId === focusId) - Number(a.patientId === focusId)).map(p => (
               <View key={p.patientId} style={s.block}>
                 {p.patientId === focusId && <Text style={s.muted}>Opened from an alert. Live view below.</Text>}
@@ -146,18 +175,23 @@ export default function LocationSharingSection() {
                     return 'Battery: not shared by the patient.';
                   })()}</Text>
                 )}
-                {p.patientSharing && <LiveLocationCard patientId={p.patientId} />}
+                {p.patientSharing && <LiveLocationCard patientId={p.patientId} zoneVersion={zoneVersion} />}
                 {p.canSetBoundary && zoneFor !== p.patientId && (
                   <TouchableOpacity style={s.btn} onPress={() => openZone(p.patientId)}><Text style={s.btnText}>Set safe area</Text></TouchableOpacity>
                 )}
                 {zoneFor === p.patientId && (
                   <View>
                     <Text style={s.muted}>Centre of the safe area in decimal degrees, and its radius in metres (100 to 5000, test values). Filled from the patient's live position when there is one.</Text>
+                    {zoneLoading && <><ActivityIndicator color={DARK} /><Text style={s.note}>Loading saved safe area and current position...</Text></>}
+                    {!!zoneError && <><Text accessibilityRole="alert" style={s.note}>{zoneError}</Text><TouchableOpacity onPress={() => openZone(p.patientId)}><Text style={s.note}>Retry safe area</Text></TouchableOpacity></>}
+                    {!zoneLoading && !zoneError && <>
                     {(['lat', 'lon', 'radiusM'] as const).map(k => (
-                      <TextInput key={k} style={s.input} keyboardType="numeric" value={form[k]} placeholder={k === 'radiusM' ? 'Radius in metres' : k === 'lat' ? 'Latitude' : 'Longitude'}
+                      <TextInput key={k} accessibilityLabel={k === 'lat' ? 'Latitude' : k === 'lon' ? 'Longitude' : 'Radius in metres'} placeholderTextColor={MUTED} editable={!busy} style={s.input} keyboardType="numeric" value={form[k]} placeholder={k === 'radiusM' ? 'Radius in metres' : k === 'lat' ? 'Latitude' : 'Longitude'}
                         onChangeText={t => setForm(f => ({ ...f, [k]: t }))} />
                     ))}
-                    <TouchableOpacity style={s.btn} disabled={busy} onPress={saveZone}><Text style={s.btnText}>Save</Text></TouchableOpacity>
+                    <TouchableOpacity style={s.btn} disabled={busy} onPress={saveZone}><Text style={s.btnText}>{busy ? 'Saving...' : 'Save'}</Text></TouchableOpacity>
+                    </>}
+                    <TouchableOpacity disabled={busy} onPress={() => { zoneRequest.current++; setZoneFor(null); }}><Text style={s.note}>Cancel</Text></TouchableOpacity>
                   </View>
                 )}
               </View>

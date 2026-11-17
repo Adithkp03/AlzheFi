@@ -162,3 +162,19 @@ describe('reconciliation', () => {
     p.emit(F(1)); await flush(); expect(s.statusLine()).toMatch(/GPS fix 0s ago/);
   });
 });
+
+test('transient initial push registration is retried and becomes visible', async () => {
+ const p=mk(false); let calls=0;
+ p.d.registerToken=async () => { if(++calls === 1) throw Error('network'); };
+ const s=new LocationSession(p.d); await s.setOwner('cg','caregiver');
+ expect(s.pushStatus).toContain('Could not register');
+ await s.ensurePushRegistered(); expect(calls).toBe(2); expect(s.pushStatus).toContain('registered for alerts');
+ await s.ensurePushRegistered(); expect(calls).toBe(2);
+});
+test('late initial push registration after signout is undone', async () => {
+ const p=mk(false); let done!: () => void;
+ p.d.registerToken=() => new Promise<void>(r => { done=r; });
+ const s=new LocationSession(p.d); const start=s.setOwner('cg','caregiver'); await flush();
+ await s.setOwner(null,null); done(); await start;
+ expect(s.owner).toBeNull(); expect(p.log).toContain('unreg:tok-A');
+});

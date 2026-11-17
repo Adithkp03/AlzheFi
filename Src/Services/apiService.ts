@@ -10,6 +10,10 @@ const API_BASE_URL = Platform.select({
   default: 'http://localhost:3005/api',
 });
 
+// This APK deliberately targets the isolated location host, which has no reminder routes.
+export const LOCATION_TEST_BUILD = API_BASE_URL?.includes('alzhefi-location-test.vercel.app') ?? false;
+export const CARE_READ_TIMEOUT_MS = 12000;
+
 /**
  * True only when the server rejected the token the request actually presented.
  * A failed login attempt, a 'no token' 401 on a request that carried none, a
@@ -146,7 +150,7 @@ class ApiService {
 
   // ---------- CAREGIVER ----------
   async getLinkedPatients(): Promise<Types.User[]> {
-    const res = await this.api.get('/caregiver/patients');
+    const res = await this.api.get('/caregiver/patients', { timeout: CARE_READ_TIMEOUT_MS });
     return res.data.patients;
   }
   async getPatientEvents(patientId: string): Promise<Types.Event[]> {
@@ -184,7 +188,7 @@ class ApiService {
 
   // ---------- LOCATION (server returns 404 while the feature is off) ----------
   async getSharingStatus(): Promise<Types.SharingStatus> {
-    return (await this.api.get('/location/status')).data;
+    return (await this.api.get('/location/status', { timeout: CARE_READ_TIMEOUT_MS })).data;
   }
   async setLocationGrant(caregiverId: string, on: boolean): Promise<void> {
     if (on) await this.api.post('/location/grants', { caregiverId });
@@ -195,18 +199,21 @@ class ApiService {
   }
   async setBatterySharing(on: boolean): Promise<void> { await this.api.post(`/location/battery/${on ? 'on' : 'off'}`); }
   async sendBattery(r: { pct: number; charging: boolean; recordedAt: number }): Promise<void> { await this.api.post('/location/battery', r); }
-  async getBattery(patientId: string): Promise<Types.BatteryReading> { return (await this.api.get(`/location/battery/${patientId}`)).data; }
+  async getBattery(patientId: string): Promise<Types.BatteryReading> { return (await this.api.get(`/location/battery/${patientId}`, { timeout: CARE_READ_TIMEOUT_MS })).data; }
   async setCaregiverSharing(on: boolean): Promise<void> {
     await this.api.post(`/location/caregiver-sharing/${on ? 'on' : 'off'}`);
   }
   async getZone(patientId: string): Promise<Types.Zone | null> {
-    return (await this.api.get(`/location/zone/${patientId}`)).data;
+    return (await this.api.get(`/location/zone/${patientId}`, { timeout: CARE_READ_TIMEOUT_MS })).data;
   }
   async setZone(patientId: string, zone: Types.Zone): Promise<Types.Zone> {
-    return (await this.api.put(`/location/zone/${patientId}`, zone)).data;
+    return (await this.api.put(`/location/zone/${patientId}`, zone, { timeout: 15000 })).data;
+  }
+  async getBoundaryDiagnostic(patientId: string): Promise<any> {
+    return (await this.api.get(`/location/diagnostics/boundary/${patientId}`, { timeout: CARE_READ_TIMEOUT_MS })).data;
   }
   async getLiveLocation(patientId: string): Promise<Types.LiveLocation> {
-    return (await this.api.get(`/location/live/${patientId}`)).data;
+    return (await this.api.get(`/location/live/${patientId}`, { timeout: CARE_READ_TIMEOUT_MS })).data;
   }
   async sendLocationFix(fix: { lat: number; lon: number; accuracyM: number; recordedAt: number }): Promise<void> {
     await this.api.post('/location/fix', fix);

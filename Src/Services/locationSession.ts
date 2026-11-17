@@ -35,6 +35,8 @@ export class LocationSession {
   private lastUpload = 0;
   private lastToken: string | null = null;
   private gen = 0;
+  private pushInFlight: Promise<void> | null = null;
+  pushStatus = 'Checking notification registration.';
   private inflight: Promise<void> | null = null;   // single flight: one start/stop decision at a time
   private startedAt: number | null = null;
   private lastWant: boolean | null = null;          // last answer from the server about whether capture is wanted
@@ -73,12 +75,27 @@ export class LocationSession {
     this.lastError = null; this.lastCheckError = null; this.lastWatchError = null; this.lastWant = null;
     this.lastFixAt = null; this.lastUploadAt = null; this.lastUploadError = null; this.startedAt = null;
     if (!userId) return;
-    try {
-      const t = await this.d.getPushToken();
-      if (g !== this.gen) return;
-      if (t) { await this.d.registerToken(t); this.lastToken = t; }
-    } catch { /* push is best effort */ }
+    await this.ensurePushRegistered();
     if (role) await this.refreshCapture();
+  }
+
+  /** Retries a failed initial registration on the next refresh, without leaking another owner's token. */
+  async ensurePushRegistered(): Promise<void> {
+    if (!this.ownerId || this.lastToken) return;
+    if (this.pushInFlight) return this.pushInFlight;
+    const g = this.gen, owner = this.ownerId;
+    const task = (async () => {
+      try {
+        const token = await this.d.getPushToken();
+        if (g !== this.gen || owner !== this.ownerId) return;
+        if (!token) { this.pushStatus = 'Notifications are not registered on this phone. Check notification permission and Google Play services.'; return; }
+        await this.d.registerToken(token);
+        if (g !== this.gen || owner !== this.ownerId) { try { await this.d.unregisterToken(token); } catch {} return; }
+        this.lastToken = token; this.pushStatus = 'This phone is registered for alerts. Delivery is not guaranteed.';
+      } catch { if (g === this.gen) this.pushStatus = 'Could not register this phone for alerts. Retrying when the screen refreshes.'; }
+    })();
+    this.pushInFlight = task;
+    try { await task; } finally { if (this.pushInFlight === task) this.pushInFlight = null; }
   }
 
   /**
@@ -152,6 +169,8 @@ export class LocationSession {
   /** Logout / account switch: stop capture, remove push token on server and device. */
   async teardown(): Promise<void> {
     this.gen++;
+    this.pushInFlight = null;
+    this.pushStatus = 'Notifications are not registered.';
     await this.stopCapture();
     const t = this.lastToken; this.lastToken = null; this.lastUpload = 0;
     try { if (t) await this.d.unregisterToken(t); } catch { /* still delete device token below */ }

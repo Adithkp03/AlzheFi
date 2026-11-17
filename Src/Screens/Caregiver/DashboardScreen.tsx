@@ -21,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../Context/AuthContext';
-import { apiService } from '../../Services/apiService';
+import { apiService, LOCATION_TEST_BUILD } from '../../Services/apiService';
 
 // ─────────────────────────────────────────────────────────────
 // 🎨 Theme Constants
@@ -77,7 +77,7 @@ export default function CaregiverDashboardScreen() {
       const patients = await apiService.getLinkedPatients();
       setActivePatients(patients.length);
 
-      if (patients.length === 0) {
+      if (patients.length === 0 || LOCATION_TEST_BUILD) {
         setPendingTasks(0);
         return;
       }

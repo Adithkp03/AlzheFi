@@ -1,5 +1,5 @@
 import { useAutoRefresh } from '../../Services/useAutoRefresh';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../Context/AuthContext';
-import { apiService } from '../../Services/apiService';
+import { apiService, LOCATION_TEST_BUILD } from '../../Services/apiService';
 import LinkPatientModal from '../../Components/CareLinks/LinkPatientModal';
 import LocationSharingSection from '../../Components/Location/LocationSharingSection';
 
@@ -33,17 +33,18 @@ interface Patient {
 }
 
 interface Event {
-  _id: string;
+  _id?: string;
   title: string;
   description?: string;
   datetime: string;
   importance: 'low' | 'medium' | 'high';
-  userId: string;
+  userId?: string;
 }
 
 interface PatientCardData {
   patient: Patient;
   events: Event[];
+  eventsState: 'loading' | 'ready' | 'error' | 'unavailable';
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -163,6 +164,9 @@ function PatientCard({
         <View style={styles.accentShort} />
       </View>
 
+      {data.eventsState !== 'ready' ? <Text style={{ color: MUTED, padding: 12 }}>
+        {data.eventsState === 'loading' ? 'Loading reminders...' : data.eventsState === 'unavailable' ? 'Reminders are not available on this location test server.' : 'Could not load reminders. Retrying shortly.'}
+      </Text> : <>
       {/* Info grid */}
       <View style={styles.infoGrid}>
         <View style={styles.infoCell}>
@@ -187,6 +191,7 @@ function PatientCard({
           <Text style={styles.noReminderText}>No upcoming reminders</Text>
         </View>
       )}
+      </>}
     </View>
   );
 }
@@ -199,29 +204,36 @@ export default function PatientsScreen() {
   const [loading,     setLoading]     = useState(true);
   const [linkOpen,    setLinkOpen]    = useState(false);
 
-  useAutoRefresh(() => { fetchPatients(true); });
+  const [error, setError] = useState('');
+  const inFlight = useRef(false);
+  const generation = useRef(0);
+  useEffect(() => () => { generation.current++; }, []);
+  useAutoRefresh(() => { fetchPatients(); });
 
-  const fetchPatients = async (silent = false) => {
+  const fetchPatients = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    const gen = ++generation.current;
     try {
-      if (!silent) setLoading(true);
-      const patients = await apiService.getLinkedPatients();
-
-      const dataWithEvents = await Promise.all(
-        patients.map(async (p) => {
-          try {
-            const events = await apiService.getPatientEvents(p._id);
-            return { patient: p, events: Array.isArray(events) ? events : [] };
-          } catch {
-            return { patient: p, events: [] };
-          }
-        })
-      );
-
-      setPatientData(dataWithEvents);
-    } catch (e) {
-      console.log('Fetch patients error:', e);
+      const patients = (await apiService.getLinkedPatients()).map(p => ({ ...p, _id: p._id ?? p.id }));
+      if (gen !== generation.current) return;
+      // Show the approved list and mount location controls immediately. Reminders
+      // must never hold the entire screen behind their own network requests.
+      setPatientData(patients.map(patient => ({ patient, events: [], eventsState: LOCATION_TEST_BUILD ? 'unavailable' : 'loading' })));
+      setError(''); setLoading(false);
+      if (!LOCATION_TEST_BUILD) {
+        await Promise.all(patients.map(async patient => {
+          let events: Event[] = [], eventsState: PatientCardData['eventsState'] = 'ready';
+          try { const r = await apiService.getPatientEvents(patient._id); events = Array.isArray(r) ? r : []; }
+          catch { eventsState = 'error'; }
+          if (gen === generation.current) setPatientData(old => old.map(d => d.patient._id === patient._id ? { ...d, events, eventsState } : d));
+        }));
+      }
+    } catch {
+      if (gen === generation.current) { setPatientData([]); setError('Could not load patients. Check your connection and try again.'); }
     } finally {
-      setLoading(false);
+      inFlight.current = false;
+      if (gen === generation.current) setLoading(false);
     }
   };
 
@@ -259,13 +271,17 @@ export default function PatientsScreen() {
         </View>
         <View style={styles.statChip}>
           <Icon name="bell-outline" size={14} color={DARK} />
-          <Text style={styles.statChipText}>{totalToday} Today</Text>
+          <Text style={styles.statChipText}>{patientData.some(d => d.eventsState !== 'ready') ? 'Reminders unavailable' : `${totalToday} Today`}</Text>
         </View>
       </View>
 
       {loading ? (
         <View style={styles.emptyState}>
           <ActivityIndicator size="large" color={DARK} />
+        </View>
+      ) : error ? (
+        <View style={styles.emptyState}><Text style={styles.emptySubtitle}>{error}</Text>
+          <TouchableOpacity accessibilityLabel="Retry patients" onPress={() => { setLoading(true); fetchPatients(); }}><Text>Retry</Text></TouchableOpacity>
         </View>
       ) : patientData.length === 0 ? (
         <View style={styles.emptyState}>
