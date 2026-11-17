@@ -8,6 +8,7 @@ const seen = new Set<string>();
 const listeners = new Set<(event: BoundaryEvent) => void>();
 export const boundaryAlerts = { subscribe(fn: (event: BoundaryEvent) => void) { listeners.add(fn); return () => { listeners.delete(fn); }; } };
 export async function fullScreenAllowed(): Promise<boolean> { try { return !!(await NativeModules.BoundaryAlertAccess?.status()); } catch { return false; } }
+export async function notificationsEnabled(): Promise<boolean> { try { return !!(await NativeModules.BoundaryAlertAccess?.notificationsEnabled()); } catch { return false; } }
 export function openFullScreenSettings() { NativeModules.BoundaryAlertAccess?.openSettings(); }
 
 /** Called from both FCM foreground and background handlers. A push is never proof of access. */

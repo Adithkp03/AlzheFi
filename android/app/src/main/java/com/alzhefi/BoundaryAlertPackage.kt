@@ -15,6 +15,7 @@ class BoundaryAlertModule(private val context: ReactApplicationContext) : ReactC
     val manager = context.getSystemService(NotificationManager::class.java)
     promise.resolve(Build.VERSION.SDK_INT < 34 || manager.canUseFullScreenIntent())
   }
+  @ReactMethod fun notificationsEnabled(promise: Promise) { promise.resolve(context.getSystemService(NotificationManager::class.java).areNotificationsEnabled()) }
   @ReactMethod fun openSettings() {
     val action = if (Build.VERSION.SDK_INT >= 34) Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT else Settings.ACTION_APP_NOTIFICATION_SETTINGS
     val intent = Intent(action).apply {
