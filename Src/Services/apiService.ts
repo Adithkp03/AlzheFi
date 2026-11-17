@@ -13,7 +13,7 @@ const API_BASE_URL = Platform.select({
 // This APK deliberately targets the isolated location host, which has no reminder routes.
 export const LOCATION_TEST_BUILD = API_BASE_URL?.includes('alzhefi-location-test.vercel.app') ?? false;
 export const CARE_READ_TIMEOUT_MS = 12000;
-export const CARE_BUILD_LABEL = 'Location test v8';
+export const CARE_BUILD_LABEL = 'Location test v9';
 
 // Fixed categories only. Never render server error bodies, URLs, user ids or tokens.
 export function careReadFailure(error: any): string {
@@ -220,6 +220,10 @@ class ApiService {
   async setZone(patientId: string, zone: Types.Zone): Promise<Types.Zone> {
     return (await this.api.put(`/location/zone/${patientId}`, zone, { timeout: 15000 })).data;
   }
+  async startBoundaryTest(token:string):Promise<any>{return (await this.api.post('/location/diagnostics/boundary-test',{token},{timeout:12000})).data;}
+  async confirmBoundaryTest(id:string):Promise<any>{return (await this.api.post(`/location/diagnostics/boundary-test/${id}/confirm`,{},{timeout:20000})).data;}
+  async readBoundaryTest(id:string):Promise<any>{return (await this.api.get(`/location/diagnostics/boundary-test/${id}`,{timeout:12000})).data;}
+  async ackBoundaryTest(id:string):Promise<any>{return (await this.api.post(`/location/diagnostics/boundary-test/${id}/received`,{},{timeout:12000})).data;}
   async getBoundaryAlert(eventId: string): Promise<any> { return (await this.api.get(`/location/alerts/${eventId}`, { timeout: CARE_READ_TIMEOUT_MS })).data; }
   async getBoundaryDiagnostic(patientId: string): Promise<any> {
     return (await this.api.get(`/location/diagnostics/boundary/${patientId}`, { timeout: CARE_READ_TIMEOUT_MS })).data;

@@ -1,3 +1,4 @@
+import { receiveBoundaryTest } from './Src/Services/testAlerts';
 /**
  * @format
  */
@@ -12,7 +13,7 @@ import notifee from '@notifee/react-native';
 import { getMessaging, setBackgroundMessageHandler } from '@react-native-firebase/messaging';
 
 // Required top-level handlers. The system tray shows the alert while the app is in the background; nothing else runs here.
-try { setBackgroundMessageHandler(getMessaging(), async msg => { if (msg?.data?.kind === 'patient_left_zone') await receiveBoundaryAlert(msg.data); if (msg?.data?.kind === 'battery_clear') await clearBatteryAlerts(String(msg.data.patientId ?? '')); }); } catch { /* no push config */ }
+try { setBackgroundMessageHandler(getMessaging(), async msg => { if(msg?.data?.kind==='boundary_test')await receiveBoundaryTest(msg.data); if (msg?.data?.kind === 'patient_left_zone') await receiveBoundaryAlert(msg.data); if (msg?.data?.kind === 'battery_clear') await clearBatteryAlerts(String(msg.data.patientId ?? '')); }); } catch { /* no push config */ }
 notifee.onBackgroundEvent(async () => {});
 
 AppRegistry.registerComponent(appName, () => App);

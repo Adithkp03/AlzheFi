@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
+import { getMessaging,getToken } from '@react-native-firebase/messaging';
 import { AppState } from 'react-native';
 import { careLinkEvents, AUTO_REFRESH_MS } from '../../Services/careLinkEvents';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
@@ -6,6 +7,7 @@ import { apiService } from '../../Services/apiService';
 import { SharingStatus, BatteryReading } from '../../Types';
 import { locationSession, batteryReporter } from '../../Services/locationNative';
 import { pushFocus } from '../../Services/pushFocus';
+import { showTestAlert,scheduleTestAlert,cancelTestAlert } from '../../Services/testAlerts';
 import { fullScreenAllowed, notificationsEnabled, openFullScreenSettings, disableFullScreenAlerts } from '../../Services/boundaryAlerts';
 import LiveLocationCard from './LiveLocationCard';
 import { YELLOW, DARK, MUTED, BORDER, WHITE, DANGER } from '../CareLinks/theme';
@@ -17,6 +19,10 @@ import { YELLOW, DARK, MUTED, BORDER, WHITE, DANGER } from '../CareLinks/theme';
  * Test-only build: values and behaviour are not clinically validated.
  */
 export default function LocationSharingSection() {
+  const [testRun,setTestRun]=useState<any>(null);
+  const [testBusy,setTestBusy]=useState(false);
+  const [testError,setTestError]=useState('');
+  const testAction=async(fn:()=>Promise<any>)=>{setTestBusy(true);setTestError('');try{setTestRun(await fn());}catch(e:any){setTestError(e?.response?.status===409?'Wait at least 60 seconds from starting, then confirm.':'Test request failed. No patient boundary was changed. Try checking the result.');}finally{setTestBusy(false);}};
   const [notificationsOn, setNotificationsOn] = useState(false);
   const [fsi, setFsi] = useState(false);
   useEffect(() => { const check=()=>{fullScreenAllowed().then(setFsi);notificationsEnabled().then(setNotificationsOn);};check();const sub=AppState.addEventListener('change',x=>{if(x==='active')check();});return ()=>sub.remove(); }, []);
@@ -157,6 +163,23 @@ export default function LocationSharingSection() {
             <Text style={s.note}>Full-screen boundary alerts: {fsi ? 'locked-screen access enabled' : 'locked-screen access not enabled'}. With this app open, an in-app full-screen alert is available. When using another app, Android may show a heads-up notification instead. Delivery is not guaranteed.</Text>
             <TouchableOpacity style={s.btn} onPress={() => Alert.alert('Full-screen alert access', 'Optional: allow AlzheFi to show a boundary alert over the locked screen. Normal notifications remain the fallback. You can turn this off in Android Settings.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Enable and open settings', onPress: () => { openFullScreenSettings().then(() => fullScreenAllowed().then(setFsi)).catch(() => {}); } }])}><Text style={s.btnText}>Manage full-screen alert access</Text></TouchableOpacity>
             {fsi && <TouchableOpacity onPress={() => { disableFullScreenAlerts().then(() => setFsi(false)); }}><Text style={s.note}>Turn off locked-screen full-screen alerts</Text></TouchableOpacity>}
+            <TouchableOpacity style={s.btn} onPress={()=>Alert.alert('Test alert - this phone only','Local display test only. No patient exit, boundary change or push delivery test.',[
+              {text:'Cancel',style:'cancel'},
+              {text:'Show test now',onPress:()=>showTestAlert().catch(()=>Alert.alert('Test not started','Sign in as a caregiver and try again.'))},
+              {text:'Notify in about 15 seconds',onPress:()=>scheduleTestAlert().then(enabled=>{setSaved(enabled?'Local test scheduled. Lock this phone now. Android may delay it; this does not test push delivery.':'Local notification test scheduled. Locked-screen full-screen access is not enabled.');}).catch(()=>Alert.alert('Test not scheduled','Check Android notification settings and try again.'))},
+            ])}><Text style={s.btnText}>Test alert</Text></TouchableOpacity>
+            <TouchableOpacity onPress={()=>cancelTestAlert().then(()=>setSaved('Local test cancelled.')).catch(()=>{})}><Text style={s.note}>Cancel local test</Text></TouchableOpacity>
+            <View style={s.block}>
+              <Text style={s.name}>Simulated boundary test</Text>
+              <Text style={s.note}>This phone only. Uses synthetic inside/outside points and the same detector with its full 60-second confirmation rule. No real patient, GPS or saved boundary is changed. Tests diagnostic push delivery, not patient consent/link handling or real GPS capture.</Text>
+              <TouchableOpacity style={s.btn} disabled={testBusy} onPress={()=>testAction(async()=>{const token=await getToken(getMessaging());await apiService.registerDeviceToken(token);return apiService.startBoundaryTest(token);})}><Text style={s.btnText}>{testBusy?'Working...':'Start synthetic boundary test'}</Text></TouchableOpacity>
+              {testRun && <>
+                <Text style={s.note}>Test state: {testRun.status}. {testRun.status==='waiting'?'Wait 60 seconds after starting, then confirm below.':''} {testRun.status==='provider_accepted'?'Provider accepted the test. Phone receipt is not yet confirmed.':''} {testRun.status==='received'?'The app handled the diagnostic push. Please confirm you saw the TEST ONLY screen or notification. This is not proof of real GPS or patient-event delivery.':''}</Text>
+                {testRun.status==='waiting' && <TouchableOpacity style={s.btn} disabled={testBusy} onPress={()=>testAction(()=>apiService.confirmBoundaryTest(testRun.runId))}><Text style={s.btnText}>Confirm synthetic outside fix after 60 seconds</Text></TouchableOpacity>}
+                <TouchableOpacity style={s.btn} disabled={testBusy} onPress={()=>testAction(()=>apiService.readBoundaryTest(testRun.runId))}><Text style={s.btnText}>Check test result</Text></TouchableOpacity>
+              </>}
+              {!!testError && <Text style={s.note}>{testError}</Text>}
+            </View>
             <View style={s.row}>
               <View style={{ flex: 1 }}>
                 <Text style={s.name}>Share my location for "nearby" alerts</Text>

@@ -3,6 +3,7 @@ import Geolocation from '@react-native-community/geolocation';
 import notifee, { AndroidImportance, AndroidForegroundServiceType } from '@notifee/react-native';
 import { getMessaging, getToken, deleteToken, onMessage, onTokenRefresh, onNotificationOpenedApp, getInitialNotification } from '@react-native-firebase/messaging';
 import { EventType } from '@notifee/react-native';
+import { cancelTestAlert,receiveBoundaryTest } from './testAlerts';
 import { receiveBoundaryAlert } from './boundaryAlerts';
 import { pushFocus } from './pushFocus';
 import { careLinkEvents } from './careLinkEvents';
@@ -88,7 +89,7 @@ export const batteryReporter = new BatteryReporter({
 
 AppState.addEventListener('change', st => { if (st === 'active') { locationSession.refreshCapture({ auto: true }).catch(() => {}); batteryReporter.reconcile().catch(() => {}); } });
 
-apiService.beforeLogout = async () => { batteryReporter.teardown(); await locationSession.teardown(); };
+apiService.beforeLogout = async () => { await cancelTestAlert().catch(()=>{}); batteryReporter.teardown(); await locationSession.teardown(); };
 
 const ALERT_CHANNEL = 'location-alerts';
 
@@ -115,6 +116,7 @@ export function startPushListeners(): () => void {
     subs.push(onMessage(m, async msg => {
       if (!locationSession.owner) return;
       const d: any = msg.data ?? {};
+      if(d.kind==='boundary_test'){await receiveBoundaryTest(d);return;}
       if (d.kind === 'patient_left_zone' && d.eventId) { await receiveBoundaryAlert(d); return; }
       if (d.kind === 'battery_clear') { await clearBatteryAlerts(String(d.patientId ?? '')); return; }
       const title = msg.notification?.title ?? 'Alzhefi alert';

@@ -23,6 +23,7 @@
       android:usesCleartextTraffic="${usesCleartextTraffic}"
       android:supportsRtl="true">
       <service android:name="app.notifee.core.ForegroundService" android:foregroundServiceType="location" tools:replace="android:foregroundServiceType" />
+      <activity android:name=".BoundaryAlertTestActivity" android:exported="false" android:excludeFromRecents="true" android:launchMode="singleTop" />
       <activity android:name=".BoundaryAlertActivity" android:exported="false" android:excludeFromRecents="true" android:launchMode="singleTop" />
       <activity
         android:name=".MainActivity"

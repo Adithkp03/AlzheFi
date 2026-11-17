@@ -1,3 +1,5 @@
+jest.mock('@react-native-firebase/messaging',()=>({getMessaging:jest.fn(),getToken:jest.fn()}));
+jest.mock('../Src/Services/testAlerts',()=>({showTestAlert:jest.fn(),scheduleTestAlert:jest.fn(),cancelTestAlert:jest.fn()}));
 jest.mock('../Src/Services/boundaryAlerts', () => ({ notificationsEnabled: async () => true, fullScreenAllowed: async () => false, openFullScreenSettings: () => {} }));
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
