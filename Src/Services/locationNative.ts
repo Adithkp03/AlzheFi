@@ -1,3 +1,4 @@
+import {receiveMedicationFollowup,clearMedicationFollowups} from './medicationFollowups';
 import {clearMedicationReminders,refreshOwnMedication} from './medicationReminders';
 import { PermissionsAndroid, Platform, AppState } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
@@ -90,7 +91,7 @@ export const batteryReporter = new BatteryReporter({
 
 AppState.addEventListener('change', st => { if (st === 'active') { if(locationSession.ownerRole==='patient'&&locationSession.owner)refreshOwnMedication(locationSession.owner).catch(()=>{}); locationSession.refreshCapture({ auto: true }).catch(() => {}); batteryReporter.reconcile().catch(() => {}); } });
 
-apiService.beforeLogout = async () => { clearPendingMedicationAlert(); await clearMedicationReminders().catch(()=>{}); await cancelTestAlert().catch(()=>{}); batteryReporter.teardown(); await locationSession.teardown(); };
+apiService.beforeLogout = async () => { clearPendingMedicationAlert();await clearMedicationFollowups().catch(()=>{}); await clearMedicationReminders().catch(()=>{}); await cancelTestAlert().catch(()=>{}); batteryReporter.teardown(); await locationSession.teardown(); };
 
 const ALERT_CHANNEL = 'location-alerts';
 
@@ -118,6 +119,7 @@ export function startPushListeners(): () => void {
     subs.push(onMessage(m, async msg => {
       if (!locationSession.owner) return;
       const d: any = msg.data ?? {};
+      if(d.kind==='medication_followup'){await receiveMedicationFollowup(d);return;}
       if(d.kind==='boundary_test'){await receiveBoundaryTest(d);return;}
       if (d.kind === 'patient_left_zone' && d.eventId) { await receiveBoundaryAlert(d); return; }
       if (d.kind === 'battery_clear') { await clearBatteryAlerts(String(d.patientId ?? '')); return; }

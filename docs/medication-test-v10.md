@@ -4,7 +4,7 @@ This is engineering test software, not prescription advice, proof of ingestion o
 
 ## Current limits
 - Only the isolated care-test host is targeted. No production merge is part of this change.
-- Patient can enter exact prescribed name, dose/route and instructions, daily HH:mm times, named timezone and a date range up to90days. No PRN, taper, dosage calculation or prescribing.
+- Patient can enter exact prescribed name, dose/route and instructions, daily HH:mm times, named timezone (ambiguous/nonexistent clock-change times rejected,never automatically skipped or duplicated) and a date range up to90days. No PRN, taper, dosage calculation or prescribing.
 - Create retries use a stable request key. Edits apply from save onward. Existing dose reports and plan-edit history stay in the server audit record.
 - Records are not_confirmed, reported_taken, reported_skipped or cancelled. Corrections retain who/role/time; optimistic versions prevent silent overwrite.
 - Caregiver access is server-gated OFF until product settings approval. After enabling, patient must separately share medication details with each current link. Primary can edit/report; secondary read-only. Medication grants are bound to the exact CareLink,so re-linking cannot revive old consent.

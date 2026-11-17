@@ -160,6 +160,7 @@ class ApiService {
 
   async getMedication(patientId:string){return (await this.api.get(`/medication/${patientId}`,{timeout:CARE_READ_TIMEOUT_MS})).data;}
   async setMedicationPreferences(pref:any){return (await this.api.post('/medication/preferences',pref,{timeout:CARE_READ_TIMEOUT_MS})).data;}
+  async getMedicationFollowup(id:string){return (await this.api.get(`/medication/followups/${id}`,{timeout:CARE_READ_TIMEOUT_MS})).data;}
   async getMedicationSharing(){return (await this.api.get('/medication/sharing',{timeout:CARE_READ_TIMEOUT_MS})).data;}
   async setMedicationSharing(id:string,active:boolean){return (await this.api.post(`/medication/sharing/${id}`,{active},{timeout:CARE_READ_TIMEOUT_MS})).data;}
   async saveMedicationPlan(patientId:string,plan:any){return (await this.api.post(`/medication/${patientId}/plans`,plan,{timeout:CARE_READ_TIMEOUT_MS})).data;}
