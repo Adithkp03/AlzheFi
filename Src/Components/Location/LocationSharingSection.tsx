@@ -17,6 +17,7 @@ import { YELLOW, DARK, MUTED, BORDER, WHITE, DANGER } from '../CareLinks/theme';
  */
 export default function LocationSharingSection() {
   const [st, setSt] = useState<SharingStatus | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [off, setOff] = useState(false);          // feature disabled on server
   const [busy, setBusy] = useState(false);
   const [batt, setBatt] = useState<Record<string, BatteryReading>>({});
@@ -33,13 +34,13 @@ export default function LocationSharingSection() {
     if (loadInFlight.current) return;
     loadInFlight.current = true;
     try {
-      const next = await apiService.getSharingStatus(); setSt(next); setOff(false);
+      const next = await apiService.getSharingStatus(); setSt(next); setOff(false); setLoadError(false);
       if (next.role === 'caregiver') {
         const entries = await Promise.all(next.patients.filter(p => p.role === 'primary' && p.batteryShared).map(async p => [p.patientId, await apiService.getBattery(p.patientId).catch(() => ({ status: 'unknown' } as BatteryReading))] as const));
         setBatt(Object.fromEntries(entries));
       }
     }
-    catch (e: any) { if (e?.response?.status === 404) setOff(true); else setSt(null); }
+    catch (e: any) { if (e?.response?.status === 404) setOff(true); else { setSt(null); setLoadError(true); } }
     finally { loadInFlight.current = false; }
     locationSession.ensurePushRegistered().catch(() => {});
     batteryReporter.reconcile().catch(() => {});
@@ -108,6 +109,7 @@ export default function LocationSharingSection() {
     finally { setBusy(false); }
   };
 
+  if (loadError) return <View style={s.pad}><Text style={s.note}>Could not load location sharing. No position is shown.</Text><TouchableOpacity onPress={load}><Text style={s.note}>Retry location sharing</Text></TouchableOpacity></View>;
   if (off || !st) return st === null && !off ? <View style={s.pad}><ActivityIndicator color={DARK} /></View> : null;
 
   return (
@@ -186,8 +188,8 @@ export default function LocationSharingSection() {
                     {!!zoneError && <><Text accessibilityRole="alert" style={s.note}>{zoneError}</Text><TouchableOpacity onPress={() => openZone(p.patientId)}><Text style={s.note}>Retry safe area</Text></TouchableOpacity></>}
                     {!zoneLoading && !zoneError && <>
                     {(['lat', 'lon', 'radiusM'] as const).map(k => (
-                      <TextInput key={k} accessibilityLabel={k === 'lat' ? 'Latitude' : k === 'lon' ? 'Longitude' : 'Radius in metres'} placeholderTextColor={MUTED} editable={!busy} style={s.input} keyboardType="numeric" value={form[k]} placeholder={k === 'radiusM' ? 'Radius in metres' : k === 'lat' ? 'Latitude' : 'Longitude'}
-                        onChangeText={t => setForm(f => ({ ...f, [k]: t }))} />
+                      <View key={k}><Text style={s.note}>{k === 'lat' ? 'Latitude' : k === 'lon' ? 'Longitude' : 'Radius in metres'}</Text><TextInput accessibilityLabel={k === 'lat' ? 'Latitude' : k === 'lon' ? 'Longitude' : 'Radius in metres'} placeholderTextColor={MUTED} editable={!busy} style={s.input} keyboardType="numeric" value={form[k]} placeholder={k === 'radiusM' ? 'Radius in metres' : k === 'lat' ? 'Latitude' : 'Longitude'}
+                        onChangeText={t => setForm(f => ({ ...f, [k]: t }))} /></View>
                     ))}
                     <TouchableOpacity style={s.btn} disabled={busy} onPress={saveZone}><Text style={s.btnText}>{busy ? 'Saving...' : 'Save'}</Text></TouchableOpacity>
                     </>}
