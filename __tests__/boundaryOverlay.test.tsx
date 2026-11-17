@@ -1,0 +1,18 @@
+import React from 'react';
+import renderer,{act} from 'react-test-renderer';
+let boundary:(e:any)=>void,test:(id:string,source?:string)=>void;
+const state:any={user:{id:'cg',role:'caregiver'},userToken:'token'};
+jest.mock('../Src/Context/AuthContext',()=>({useAuth:()=>({state})}));
+jest.mock('../Src/Services/boundaryAlerts',()=>({boundaryAlerts:{subscribe:(fn:any)=>{boundary=fn;return()=>{};}}}));
+jest.mock('../Src/Services/testAlerts',()=>({testAlerts:{subscribe:(fn:any)=>{test=fn;return()=>{};}}}));
+jest.mock('../Src/Services/apiService',()=>({apiService:{getBoundaryAlert:jest.fn()}}));
+jest.mock('../Src/Services/pushFocus',()=>({pushFocus:{record:jest.fn()}}));
+jest.mock('../Src/Navigation/navigationRef',()=>({openPatientsForPendingAlert:jest.fn()}));
+import Overlay from '../Src/Components/Location/BoundaryAlertOverlay';
+import {Modal} from 'react-native';
+let tree:renderer.ReactTestRenderer;
+beforeEach(async()=>{state.user={id:'cg',role:'caregiver'};state.userToken='token';await act(async()=>{tree=renderer.create(<Overlay/>);});});afterEach(async()=>{await act(async()=>tree.unmount());});
+it('local and synthetic test copy remain distinct and harmless',async()=>{await act(async()=>test('cg'));expect(JSON.stringify(tree.toJSON())).toContain('Local full-screen display test');await act(async()=>test('cg','synthetic'));expect(JSON.stringify(tree.toJSON())).toContain('Synthetic boundary diagnostic received');});
+it('real boundary immediately replaces test and test cannot hide it',async()=>{await act(async()=>test('cg'));await act(async()=>boundary({eventId:'e',recipientId:'cg',patientId:'p',occurredAt:Date.now()}));expect(JSON.stringify(tree.toJSON())).toContain('A confirmed safe-area exit');await act(async()=>test('cg','synthetic'));expect(JSON.stringify(tree.toJSON())).toContain('A confirmed safe-area exit');expect(JSON.stringify(tree.toJSON())).not.toContain('TEST ONLY');});
+it('other account cannot show preview',async()=>{await act(async()=>test('other'));expect(tree.root.findByType(Modal).props.visible).toBe(false);});
+it('signout hides current preview',async()=>{await act(async()=>test('cg'));state.user=null;state.userToken=null;await act(async()=>tree.update(<Overlay/>));expect(tree.root.findByType(Modal).props.visible).toBe(false);});
