@@ -30,14 +30,14 @@ export async function receiveBoundaryAlert(data: any): Promise<boolean> {
   if (user?.role !== 'caregiver' || String(user.id ?? user._id) !== data.recipientId) return false;
   let event: BoundaryEvent;
   try { event = await apiService.getBoundaryAlert(data.eventId); } catch { return false; }
-  if (before !== await AsyncStorage.getItem('user') || event.recipientId !== data.recipientId || event.eventId !== data.eventId || Date.now() - event.occurredAt > 300000 || Date.now() < event.occurredAt - 30000) return false;
+  if (before !== await AsyncStorage.getItem('user') || event.recipientId !== data.recipientId || event.eventId !== data.eventId || !ids.test(String(event.patientId)) || !Number.isFinite(event.occurredAt) || Date.now() - event.occurredAt > 300000 || Date.now() < event.occurredAt - 30000) return false;
   if (seen.has(event.eventId)) return true;
   seen.add(event.eventId); if (seen.size > 100) seen.delete(seen.values().next().value!);
   const foreground = AppState.currentState === 'active';
   if (foreground) listeners.forEach(fn => fn(event));
   await notifee.createChannel({ id: 'boundary-alerts-v1', name: 'Boundary alerts', importance: AndroidImportance.HIGH, sound: 'default', vibration: true });
   const fsi = !foreground && await fullScreenAllowed();
-  await notifee.displayNotification({
+  const notification = {
     id: `boundary-${event.eventId}`, title: 'AlzheFi boundary alert', body: 'Open the app to check the current status.',
     data: { kind: 'patient_left_zone', patientId: event.patientId, eventId: event.eventId, recipientId: event.recipientId },
     android: { channelId: 'boundary-alerts-v1', visibility: AndroidVisibility.PRIVATE, smallIcon: 'ic_launcher',
@@ -45,6 +45,13 @@ export async function receiveBoundaryAlert(data: any): Promise<boolean> {
       ...(fsi ? { fullScreenAction: { id: 'boundary', launchActivity: 'com.alzhefi.BoundaryAlertActivity' } } : {}),
       timeoutAfter: 300000,
     },
-  });
+  };
+  if (before !== await AsyncStorage.getItem('user')) return false;
+  try { await notifee.displayNotification(notification); } catch (error) {
+    if (!fsi) throw error;
+    // A settings change or platform rejection must retain the ordinary fallback.
+    const { fullScreenAction: _fullScreenAction, ...android } = notification.android;
+    await notifee.displayNotification({ ...notification, android });
+  }
   return true;
 }

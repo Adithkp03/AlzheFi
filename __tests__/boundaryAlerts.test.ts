@@ -20,3 +20,6 @@ test('stale event is not displayed',async()=>{event.occurredAt=Date.now()-300001
 test('same event cannot repeatedly take over the screen',async()=>{await receiveBoundaryAlert(data);await receiveBoundaryAlert(data);expect(notifee.displayNotification).toHaveBeenCalledTimes(1);});
 
 test('special OS access alone does not opt caregiver into locked-screen takeover',async()=>{await AsyncStorage.removeItem(`fullScreenBoundary:${owner}`);Object.defineProperty(AppState,'currentState',{value:'background'});await receiveBoundaryAlert(data);expect((notifee.displayNotification as jest.Mock).mock.calls[0][0].android.fullScreenAction).toBeUndefined();});
+
+test('platform full-screen rejection retries as an ordinary notification',async()=>{Object.defineProperty(AppState,'currentState',{value:'background'});(notifee.displayNotification as jest.Mock).mockRejectedValueOnce(new Error('access changed'));await receiveBoundaryAlert(data);expect(notifee.displayNotification).toHaveBeenCalledTimes(2);expect((notifee.displayNotification as jest.Mock).mock.calls[1][0].android.fullScreenAction).toBeUndefined();});
+test('invalid event time is not displayed',async()=>{event.occurredAt=undefined;expect(await receiveBoundaryAlert(data)).toBe(false);expect(notifee.displayNotification).not.toHaveBeenCalled();});
