@@ -18,6 +18,9 @@ function RootNavigator() {
   const [appState, setAppState] = useState<
     'loading' | 'intro' | 'auth' | 'app'
   >('loading');
+  // Stays false until the saved session has been restored, so the token effect
+  // below cannot flash the login screen before the restore lands.
+  const bootstrapped = React.useRef(false);
 
   useEffect(() => startPushListeners(), []);
 
@@ -26,25 +29,26 @@ function RootNavigator() {
   }, []);
 
   const initializeApp = async () => {
-    await bootstrapAsync();
+    // Decide from bootstrap's own result: state inside this closure is stale.
+    const restored = await bootstrapAsync();
 
     const hasLaunched = await AsyncStorage.getItem('hasLaunched');
 
     if (!hasLaunched) {
       await AsyncStorage.setItem('hasLaunched', 'true');
       setAppState('intro');
+      bootstrapped.current = true;
       return;
     }
 
-    if (state.userToken) {
-      setAppState('app');
-    } else {
-      setAppState('auth');
-    }
+    setAppState(restored.token ? 'app' : 'auth');
+    bootstrapped.current = true;
   };
 
-  // React when token changes (after login)
+  // React when token changes (after login/logout)
 useEffect(() => {
+  if (!bootstrapped.current) return;
+  if (appState === 'intro') return; // the intro owns the screen until finished
   if (state.userToken) {
     setAppState('app');
   } else {

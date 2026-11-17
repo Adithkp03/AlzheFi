@@ -42,7 +42,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>
   signUp: (name: string, email: string, password: string, role: Types.UserRole) => Promise<void>
   signOut: () => Promise<void>
-  bootstrapAsync: () => Promise<void>
+  bootstrapAsync: () => Promise<{ token: string | null; user: Types.User | null }>
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -117,29 +117,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     locationSession.setOwner(ownerId, r).catch(() => {})
   }, [ownerId, ownerRole])
 
-  const bootstrapAsync = useCallback(async () => {
-    const timeoutPromise = new Promise<{ token: string | null; user: Types.User | null }>((resolve) =>
-      setTimeout(() => resolve({ token: null, user: null }), 3000)
-    );
-
-    const bootstrapPromise = (async (): Promise<{ token: string | null; user: Types.User | null }> => {
-      try {
-        const token = await AsyncStorage.getItem('userToken');
-        const userStr = await AsyncStorage.getItem('user');
-        const user = userStr ? JSON.parse(userStr) : null;
-        return { token, user };
-      } catch (e) {
-        console.error('Failed to restore token:', e);
-        return { token: null, user: null };
-      }
-    })();
-
-    const result = await Promise.race([bootstrapPromise, timeoutPromise]);
+  // Restore waits for storage instead of racing a fixed timeout: a slow cold
+  // start must never discard a valid saved session and dump the user on the
+  // login screen.
+  const bootstrapAsync = useCallback(async (): Promise<{ token: string | null; user: Types.User | null }> => {
+    let result: { token: string | null; user: Types.User | null } = { token: null, user: null };
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const userStr = await AsyncStorage.getItem('user');
+      result = { token, user: userStr ? JSON.parse(userStr) : null };
+    } catch (e) {
+      console.error('Failed to restore token:', e);
+    }
 
     dispatch({
       type: 'RESTORE_TOKEN',
       payload: result,
     });
+    return result;
   }, []);
 
 

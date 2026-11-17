@@ -10,6 +10,33 @@ const API_BASE_URL = Platform.select({
   default: 'http://localhost:3005/api',
 });
 
+/**
+ * True only when the server rejected the token the request actually presented.
+ * A failed login attempt, a 'no token' 401 on a request that carried none, a
+ * network failure, or a transient server error must never end a saved session.
+ */
+export function isPresentedTokenRejected(error: AxiosError): boolean {
+  if (error.response?.status !== 401) return false;
+  const headers: any = error.config?.headers;
+  const presented: unknown =
+    headers?.Authorization ?? headers?.authorization ?? headers?.get?.('Authorization');
+  if (!presented) return false;
+  const data: any = error.response.data ?? {};
+  const code = typeof data.code === 'string' ? data.code : '';
+  const message =
+    typeof data.message === 'string'
+      ? data.message
+      : typeof data.error === 'string'
+        ? data.error
+        : '';
+  return (
+    code === 'TOKEN_INVALID' ||
+    code === 'USER_NOT_FOUND' ||
+    message === 'Not authorized, token failed' ||
+    message === 'Not authorized'
+  );
+}
+
 class ApiService {
   private api: AxiosInstance;
 
@@ -30,8 +57,7 @@ class ApiService {
     this.api.interceptors.response.use(
     res => res,
     async (error: AxiosError) => {
-      if (error.response?.status === 401) {
-        // Clear everything on unauthorized
+      if (isPresentedTokenRejected(error)) {
         await AsyncStorage.multiRemove(['userToken', 'user']);
       }
       return Promise.reject(error);
