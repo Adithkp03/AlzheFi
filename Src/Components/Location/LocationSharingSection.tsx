@@ -6,6 +6,7 @@ import { apiService } from '../../Services/apiService';
 import { SharingStatus, BatteryReading } from '../../Types';
 import { locationSession, batteryReporter } from '../../Services/locationNative';
 import { pushFocus } from '../../Services/pushFocus';
+import { fullScreenAllowed, openFullScreenSettings } from '../../Services/boundaryAlerts';
 import LiveLocationCard from './LiveLocationCard';
 import { YELLOW, DARK, MUTED, BORDER, WHITE, DANGER } from '../CareLinks/theme';
 
@@ -16,6 +17,8 @@ import { YELLOW, DARK, MUTED, BORDER, WHITE, DANGER } from '../CareLinks/theme';
  * Test-only build: values and behaviour are not clinically validated.
  */
 export default function LocationSharingSection() {
+  const [fsi, setFsi] = useState(false);
+  useEffect(() => { const check=()=>{fullScreenAllowed().then(setFsi);};check();const sub=AppState.addEventListener('change',x=>{if(x==='active')check();});return ()=>sub.remove(); }, []);
   const [st, setSt] = useState<SharingStatus | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [off, setOff] = useState(false);          // feature disabled on server
@@ -149,6 +152,8 @@ export default function LocationSharingSection() {
           </>
         ) : (
           <>
+            <Text style={s.note}>Full-screen boundary alerts: {fsi ? 'locked-screen access enabled' : 'locked-screen access not enabled'}. With this app open, an in-app full-screen alert is available. When using another app, Android may show a heads-up notification instead. Delivery is not guaranteed.</Text>
+            <TouchableOpacity style={s.btn} onPress={() => Alert.alert('Full-screen alert access', 'Optional: allow AlzheFi to show a boundary alert over the locked screen. Normal notifications remain the fallback. You can turn this off in Android Settings.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Android Settings', onPress: openFullScreenSettings }])}><Text style={s.btnText}>Manage full-screen alert access</Text></TouchableOpacity>
             <View style={s.row}>
               <View style={{ flex: 1 }}>
                 <Text style={s.name}>Share my location for "nearby" alerts</Text>

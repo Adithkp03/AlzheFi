@@ -1,3 +1,4 @@
+jest.mock('../Src/Components/Location/BoundaryAlertOverlay', () => () => null);
 /**
  * Start-screen routing evidence: which screen a user lands on when the app
  * opens, per saved-session state. Navigators and Intro are mocked to marker

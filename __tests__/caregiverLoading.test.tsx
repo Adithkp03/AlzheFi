@@ -1,3 +1,4 @@
+jest.mock('../Src/Services/boundaryAlerts', () => ({ fullScreenAllowed: async () => false, openFullScreenSettings: () => {} }));
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 import { TextInput, TouchableOpacity, Text, Alert, AppState } from 'react-native';

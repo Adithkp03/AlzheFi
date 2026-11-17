@@ -3,6 +3,7 @@ import Geolocation from '@react-native-community/geolocation';
 import notifee, { AndroidImportance, AndroidForegroundServiceType } from '@notifee/react-native';
 import { getMessaging, getToken, deleteToken, onMessage, onTokenRefresh, onNotificationOpenedApp, getInitialNotification } from '@react-native-firebase/messaging';
 import { EventType } from '@notifee/react-native';
+import { receiveBoundaryAlert } from './boundaryAlerts';
 import { pushFocus } from './pushFocus';
 import { careLinkEvents } from './careLinkEvents';
 import { openPatientsForPendingAlert, openProfileForRequest } from '../Navigation/navigationRef';
@@ -114,6 +115,7 @@ export function startPushListeners(): () => void {
     subs.push(onMessage(m, async msg => {
       if (!locationSession.owner) return;
       const d: any = msg.data ?? {};
+      if (d.kind === 'patient_left_zone' && d.eventId) { await receiveBoundaryAlert(d); return; }
       if (d.kind === 'battery_clear') { await clearBatteryAlerts(String(d.patientId ?? '')); return; }
       const title = msg.notification?.title ?? 'Alzhefi alert';
       const body = msg.notification?.body ?? 'Open the app.';

@@ -11,6 +11,8 @@ import { startPushListeners } from './Src/Services/locationNative';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
+import BoundaryAlertOverlay from './Src/Components/Location/BoundaryAlertOverlay';
+
 const Stack = createNativeStackNavigator();
 
 function RootNavigator() {
@@ -90,6 +92,7 @@ export default function App() {
   return (
     <AuthProvider>
       <RootNavigator />
+      <BoundaryAlertOverlay />
     </AuthProvider>
   );
 }

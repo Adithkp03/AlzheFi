@@ -13,7 +13,7 @@ const API_BASE_URL = Platform.select({
 // This APK deliberately targets the isolated location host, which has no reminder routes.
 export const LOCATION_TEST_BUILD = API_BASE_URL?.includes('alzhefi-location-test.vercel.app') ?? false;
 export const CARE_READ_TIMEOUT_MS = 12000;
-export const CARE_BUILD_LABEL = 'Location test v7';
+export const CARE_BUILD_LABEL = 'Location test v8';
 
 // Fixed categories only. Never render server error bodies, URLs, user ids or tokens.
 export function careReadFailure(error: any): string {
@@ -220,6 +220,7 @@ class ApiService {
   async setZone(patientId: string, zone: Types.Zone): Promise<Types.Zone> {
     return (await this.api.put(`/location/zone/${patientId}`, zone, { timeout: 15000 })).data;
   }
+  async getBoundaryAlert(eventId: string): Promise<any> { return (await this.api.get(`/location/alerts/${eventId}`, { timeout: CARE_READ_TIMEOUT_MS })).data; }
   async getBoundaryDiagnostic(patientId: string): Promise<any> {
     return (await this.api.get(`/location/diagnostics/boundary/${patientId}`, { timeout: CARE_READ_TIMEOUT_MS })).data;
   }
@@ -230,10 +231,10 @@ class ApiService {
     await this.api.post('/location/fix', fix);
   }
   async removeDeviceToken(token: string): Promise<void> {
-    await this.api.post('/location/device-token/remove', { token });
+    await this.api.post('/location/device-token/remove', { token, boundaryAlertV1: true });
   }
   async registerDeviceToken(token: string): Promise<void> {
-    await this.api.post('/location/device-token', { token });
+    await this.api.post('/location/device-token', { token, boundaryAlertV1: true });
   }
 
   async getPatientProfile(patientId: string): Promise<Types.PatientProfile> {
