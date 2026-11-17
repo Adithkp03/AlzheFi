@@ -82,8 +82,8 @@ android {
         applicationId "com.alzhefi"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 9
-        versionName "1.0-test9"
+        versionCode 10
+        versionName "1.0-test10"
     }
     signingConfigs {
         debug {

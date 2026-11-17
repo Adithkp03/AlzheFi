@@ -13,3 +13,8 @@ export function openPatientsForPendingAlert() {
 export function openProfileForRequest() {
   try { if (navigationRef.isReady()) navigationRef.navigate('Profile' as never); } catch { /* ignore */ }
 }
+
+let pendingMedication:{owner:string;patientId:string}|null=null;
+export function queueMedicationAlert(owner:string,patientId:string){pendingMedication={owner,patientId};}
+export function clearPendingMedicationAlert(){pendingMedication=null;}
+export function openMedicationAlert(owner:string|null){if(!pendingMedication)return;if(owner!==pendingMedication.owner){pendingMedication=null;return;}try{if(navigationRef.isReady()&&navigationRef.getRootState()?.routes.some(r=>r.name==='App')){const p=pendingMedication;pendingMedication=null;navigationRef.navigate('Reminders',{patientId:p.patientId});}}catch{/* retry once navigation is ready */}}

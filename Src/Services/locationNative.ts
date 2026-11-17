@@ -1,3 +1,4 @@
+import {clearMedicationReminders,refreshOwnMedication} from './medicationReminders';
 import { PermissionsAndroid, Platform, AppState } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import notifee, { AndroidImportance, AndroidForegroundServiceType } from '@notifee/react-native';
@@ -7,7 +8,7 @@ import { cancelTestAlert,receiveBoundaryTest } from './testAlerts';
 import { receiveBoundaryAlert } from './boundaryAlerts';
 import { pushFocus } from './pushFocus';
 import { careLinkEvents } from './careLinkEvents';
-import { openPatientsForPendingAlert, openProfileForRequest } from '../Navigation/navigationRef';
+import { openPatientsForPendingAlert, openProfileForRequest,queueMedicationAlert,openMedicationAlert,clearPendingMedicationAlert } from '../Navigation/navigationRef';
 import { apiService } from './apiService';
 import DeviceInfo from 'react-native-device-info';
 import { BatteryReporter } from './batteryReporter';
@@ -87,14 +88,15 @@ export const batteryReporter = new BatteryReporter({
   every: (fn, ms) => { const id = setInterval(fn, ms); return () => clearInterval(id); },
 });
 
-AppState.addEventListener('change', st => { if (st === 'active') { locationSession.refreshCapture({ auto: true }).catch(() => {}); batteryReporter.reconcile().catch(() => {}); } });
+AppState.addEventListener('change', st => { if (st === 'active') { if(locationSession.ownerRole==='patient'&&locationSession.owner)refreshOwnMedication(locationSession.owner).catch(()=>{}); locationSession.refreshCapture({ auto: true }).catch(() => {}); batteryReporter.reconcile().catch(() => {}); } });
 
-apiService.beforeLogout = async () => { await cancelTestAlert().catch(()=>{}); batteryReporter.teardown(); await locationSession.teardown(); };
+apiService.beforeLogout = async () => { clearPendingMedicationAlert(); await clearMedicationReminders().catch(()=>{}); await cancelTestAlert().catch(()=>{}); batteryReporter.teardown(); await locationSession.teardown(); };
 
 const ALERT_CHANNEL = 'location-alerts';
 
 /** A tapped alert: remember the patient for the signed-in caregiver and go to the live view. Never carries a position. */
 function handleTap(data: any) {
+  if(['medication_due','medication_followup'].includes(data?.kind)){const owner=locationSession.owner;const pid=String(data.patientId??'');if(!owner||!(/^[a-f0-9]{24}$/i.test(pid)))return;const allowed=data.kind==='medication_due'?locationSession.ownerRole==='patient'&&owner===pid:locationSession.ownerRole==='caregiver'&&owner===data.recipientId;if(allowed){queueMedicationAlert(owner,pid);openMedicationAlert(owner);}return;}
   if (data?.kind === 'care_link_request') {
     if (locationSession.owner && locationSession.ownerRole === 'patient') { openProfileForRequest(); careLinkEvents.emit(); }
     return;

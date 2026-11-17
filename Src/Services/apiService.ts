@@ -10,10 +10,10 @@ const API_BASE_URL = Platform.select({
   default: 'http://localhost:3005/api',
 });
 
-// This APK deliberately targets the isolated location host, which has no reminder routes.
+// This APK targets the isolated care test host. Legacy reminder routes remain disabled.
 export const LOCATION_TEST_BUILD = API_BASE_URL?.includes('alzhefi-location-test.vercel.app') ?? false;
 export const CARE_READ_TIMEOUT_MS = 12000;
-export const CARE_BUILD_LABEL = 'Location test v9';
+export const CARE_BUILD_LABEL = 'Care test v10';
 
 // Fixed categories only. Never render server error bodies, URLs, user ids or tokens.
 export function careReadFailure(error: any): string {
@@ -157,6 +157,14 @@ class ApiService {
     const res = await this.api.post('/chat/search', { query });
     return res.data.results;
   }
+
+  async getMedication(patientId:string){return (await this.api.get(`/medication/${patientId}`,{timeout:CARE_READ_TIMEOUT_MS})).data;}
+  async setMedicationPreferences(pref:any){return (await this.api.post('/medication/preferences',pref,{timeout:CARE_READ_TIMEOUT_MS})).data;}
+  async getMedicationSharing(){return (await this.api.get('/medication/sharing',{timeout:CARE_READ_TIMEOUT_MS})).data;}
+  async setMedicationSharing(id:string,active:boolean){return (await this.api.post(`/medication/sharing/${id}`,{active},{timeout:CARE_READ_TIMEOUT_MS})).data;}
+  async saveMedicationPlan(patientId:string,plan:any){return (await this.api.post(`/medication/${patientId}/plans`,plan,{timeout:CARE_READ_TIMEOUT_MS})).data;}
+  async stopMedicationPlan(patientId:string,id:string){return (await this.api.post(`/medication/${patientId}/plans/${id}/stop`,{},{timeout:CARE_READ_TIMEOUT_MS})).data;}
+  async reportMedicationDose(patientId:string,id:string,state:string,rev:number){return (await this.api.post(`/medication/${patientId}/doses/${id}`,{state,rev},{timeout:CARE_READ_TIMEOUT_MS})).data;}
 
   // ---------- CAREGIVER ----------
   async getLinkedPatients(): Promise<Types.User[]> {
