@@ -103,3 +103,5 @@ test('caregiver-read diagnostics expose only fixed failure categories', () => {
  expect(careReadFailure({ code:'INVALID_PATIENT_LIST' })).toBe('Invalid server response');
  expect(careReadFailure({ message:'secret' })).toBe('Request did not complete');
 });
+
+test('actual rejected-token interceptor also clears native account-scoped reminders',async()=>{const {apiService}=require('../Src/Services/apiService');const cleanup=jest.fn(async()=>{});apiService.beforeLogout=cleanup;await AsyncStorage.setItem('userToken','tok');await AsyncStorage.setItem('user',JSON.stringify({id:'old'}));const rejected=apiService.api.interceptors.response.handlers[0].rejected;await expect(rejected(err(401,{code:'TOKEN_INVALID',message:'Not authorized, token failed'},true))).rejects.toBeDefined();expect(cleanup).toHaveBeenCalledTimes(1);apiService.beforeLogout=null;});

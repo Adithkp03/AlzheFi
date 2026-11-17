@@ -91,7 +91,8 @@ class ApiService {
     this.api.interceptors.response.use(
     res => res,
     async (error: AxiosError) => {
-      await clearRejectedSession(error);
+      const cleared=await clearRejectedSession(error);
+      if(cleared){try{await this.beforeLogout?.();}catch{/* local cleanup must not hide the auth error */}}
       return Promise.reject(error);
     }
   );
