@@ -11,9 +11,9 @@ export default function BoundaryAlertOverlay() {
   const owner = state.user?.id ?? state.user?._id;
   const [testSource,setTestSource]=useState('local');
   const [testOwner,setTestOwner]=useState<string|null>(null);
-  useEffect(()=>testAlerts.subscribe((id,source)=>{setTestOwner(id);setTestSource(source??'local');}),[]);
   const [event, setEvent] = useState<BoundaryEvent | null>(null);
-  useEffect(() => boundaryAlerts.subscribe(setEvent), []);
+  useEffect(()=>testAlerts.subscribe((id,source)=>{if(!event){setTestOwner(id);setTestSource(source??'local');}}),[event]);
+  useEffect(() => boundaryAlerts.subscribe(next=>{setTestOwner(null);setEvent(next);}), []);
   useEffect(() => { setEvent(null);setTestOwner(null); }, [owner, state.userToken]);
   useEffect(() => {
     if (!event) return;
