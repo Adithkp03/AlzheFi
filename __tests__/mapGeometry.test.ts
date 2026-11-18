@@ -1,0 +1,2 @@
+import {toPixel,fromPixel,radiusPixels} from '../Src/Components/Location/mapGeometry';
+test('map centre/tap projection roundtrips with fixed radius scale',()=>{for(const z of [3,12,18])for(const [lat,lon] of [[10,76],[-35,140],[51,-.1]]){const p=toPixel(lat,lon,z),ll=fromPixel(p.x,p.y,z);expect(ll.lat).toBeCloseTo(lat,6);expect(ll.lon).toBeCloseTo(lon,6);}expect(radiusPixels(300,0,16)).toBeCloseTo(125.59,1);expect(toPixel(90,0,16).y).toBeGreaterThan(0);});

@@ -1,3 +1,4 @@
+import {replaySetup} from '../../Components/SetupWalkthrough';
 import React from 'react';
 import {
   View,
@@ -106,6 +107,7 @@ const handleLogout = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        <TouchableOpacity accessibilityRole="button" onPress={replaySetup} style={{padding:18,backgroundColor:'#E3F73F',borderRadius:14,marginBottom:16}}><Text style={{fontSize:17,fontWeight:'700',color:'#1F2937'}}>Settings: replay setup and feature walkthrough</Text></TouchableOpacity>
 
         {/* PROFILE CARD */}
         <View style={styles.profileCard}>

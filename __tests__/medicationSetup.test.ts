@@ -1,0 +1,5 @@
+jest.mock('react-native-image-picker',()=>({launchImageLibrary:jest.fn()}));
+import {validateMedicationStep} from '../Src/Components/MedicationSetup';
+const good={name:'Synthetic label',medicineType:'Tablet',doseText:'Prescription wording',times:'08:00,20:00',timezone:'Asia/Kolkata',startDate:'2026-11-18',endDate:'2026-11-30',refillDate:'',refillTime:'09:00'};
+test('guided steps require exact medicine identity/form,nonempty dose and distinct real daily times',()=>{for(let n=0;n<4;n++)expect(validateMedicationStep(good,n)).toBeNull();expect(validateMedicationStep({...good,medicineType:''},0)).not.toBeNull();for(const times of ['','25:00','08:00,08:00'])expect(validateMedicationStep({...good,times},1)).not.toBeNull();});
+test('invalid dates/timezone and out-of-range optional refill are rejected',()=>{expect(validateMedicationStep({...good,endDate:'2026-11-31'},2)).not.toBeNull();expect(validateMedicationStep({...good,timezone:'guess'},2)).not.toBeNull();for(const refillDate of ['2026-11-31','2026-11-01','2026-12-01'])expect(validateMedicationStep({...good,refillDate},3)).not.toBeNull();});

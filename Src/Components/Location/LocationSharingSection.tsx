@@ -1,3 +1,4 @@
+import SafeZoneMap from './SafeZoneMap';
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { getMessaging,getToken } from '@react-native-firebase/messaging';
 import { AppState } from 'react-native';
@@ -38,7 +39,7 @@ export default function LocationSharingSection() {
   const [saved, setSaved] = useState('');
   const [zoneVersion, setZoneVersion] = useState(0);
   const [zoneFor, setZoneFor] = useState<string | null>(null);
-  const [form, setForm] = useState({ lat: '', lon: '', radiusM: '300' });
+  const [form, setForm] = useState({ lat: '', lon: '', radiusM: '300',name:'',isHome:false });
 
   const load = useCallback(async () => {
     if (loadInFlight.current) return;
@@ -87,20 +88,16 @@ export default function LocationSharingSection() {
   const openZone = async (patientId: string) => {
     const request = ++zoneRequest.current;
     setZoneFor(patientId); setZoneLoading(true); setZoneError(''); setSaved('');
-    setForm({ lat: '', lon: '', radiusM: '300' });
+    setForm({ lat: '', lon: '', radiusM: '300',name:'',isHome:false });
     // Read in parallel. Do not let a slow zone request postpone the live read.
-    const [zone, live] = await Promise.allSettled([
-      apiService.getZone(patientId), apiService.getLiveLocation(patientId),
-    ]);
+    const [zone] = await Promise.allSettled([apiService.getZone(patientId)]);
     if (request !== zoneRequest.current) return;
     if (zone.status === 'rejected') {
       // Never overwrite an existing boundary just because its read failed.
       setZoneError('Could not read the saved safe area. Retry before editing.');
     } else if (zone.value) {
       const z = zone.value;
-      setForm({ lat: String(z.lat), lon: String(z.lon), radiusM: String(z.radiusM) });
-    } else if (live.status === 'fulfilled' && live.value.status === 'live') {
-      setForm({ lat: live.value.lat.toFixed(5), lon: live.value.lon.toFixed(5), radiusM: '300' });
+      setForm({ lat: String(z.lat), lon: String(z.lon), radiusM: String(z.radiusM),name:z.name??'',isHome:!!z.isHome });
     }
     setZoneLoading(false);
   };
@@ -113,7 +110,7 @@ export default function LocationSharingSection() {
     const id = zoneFor, request = zoneRequest.current;
     setBusy(true); setSaved('');
     try {
-      await apiService.setZone(id, { lat: nums[0], lon: nums[1], radiusM: nums[2] });
+      await apiService.setZone(id, { lat: nums[0], lon: nums[1], radiusM: nums[2],name:form.name,isHome:form.isHome });
       if (request === zoneRequest.current) { setZoneFor(null); setSaved('Safe area saved.'); setZoneVersion(v => v + 1); }
     } catch { Alert.alert('Not saved', 'Could not confirm the safe-area save. Reopen it to check the saved values before trying again.'); }
     finally { setBusy(false); }
@@ -216,10 +213,11 @@ export default function LocationSharingSection() {
                 )}
                 {zoneFor === p.patientId && (
                   <View>
-                    <Text style={s.muted}>Centre of the safe area in decimal degrees, and its radius in metres (100 to 5000, test values). Filled from the patient's live position when there is one.</Text>
+                    <Text style={s.muted}>Centre of the safe area in decimal degrees, and its radius in metres (100 to 5000, test values). No automatic patient-position marker or provider request. Enter a place or coordinates,then review and save.</Text>
                     {zoneLoading && <><ActivityIndicator color={DARK} /><Text style={s.note}>Loading saved safe area and current position...</Text></>}
                     {!!zoneError && <><Text accessibilityRole="alert" style={s.note}>{zoneError}</Text><TouchableOpacity onPress={() => openZone(p.patientId)}><Text style={s.note}>Retry safe area</Text></TouchableOpacity></>}
                     {!zoneLoading && !zoneError && <>
+                    <SafeZoneMap key={zoneFor} patientId={zoneFor} value={form} onChange={setForm} busy={busy}/>
                     {(['lat', 'lon', 'radiusM'] as const).map(k => (
                       <View key={k}><Text style={s.note}>{k === 'lat' ? 'Latitude' : k === 'lon' ? 'Longitude' : 'Radius in metres'}</Text><TextInput accessibilityLabel={k === 'lat' ? 'Latitude' : k === 'lon' ? 'Longitude' : 'Radius in metres'} placeholderTextColor={MUTED} editable={!busy} style={s.input} keyboardType="numeric" value={form[k]} placeholder={k === 'radiusM' ? 'Radius in metres' : k === 'lat' ? 'Latitude' : 'Longitude'}
                         onChangeText={t => setForm(f => ({ ...f, [k]: t }))} /></View>

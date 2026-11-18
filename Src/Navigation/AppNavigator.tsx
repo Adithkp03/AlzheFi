@@ -1,3 +1,4 @@
+import SetupWalkthrough from '../Components/SetupWalkthrough';
 import React from 'react';
 import PatientTabNavigator from './PatientTabNavigator';
 import CaregiverNavigator from './CaregiverNavigator';
@@ -7,9 +8,9 @@ export default function AppNavigator() {
   const { state } = useAuth();
 
   if (state.user?.role === 'caregiver') {
-  return <CaregiverNavigator />;
+  return <><CaregiverNavigator /><SetupWalkthrough /></>;
 } else {
-  return <PatientTabNavigator />;
+  return <><PatientTabNavigator /><SetupWalkthrough /></>;
 }
 
 

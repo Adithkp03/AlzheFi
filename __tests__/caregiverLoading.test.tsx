@@ -47,33 +47,33 @@ test('slow patient read does not overlap on refresh', async () => {
  await act(async () => { jest.advanceTimersByTime(24000); });
  expect(api.getLinkedPatients).toHaveBeenCalledTimes(1);
 });
-test('zone and live reads start together; inputs cannot be edited before saved-zone result', async () => {
+test('saved-zone read gates edits; no patient-position prefill or provider call', async () => {
  const zone=deferred(); api.getZone.mockReturnValue(zone.promise);
  await act(async () => { t=renderer.create(<LocationSharingSection />); }); await flush();
  await press(t,'Set safe area');
- expect(api.getLiveLocation).toHaveBeenCalledWith('p'); expect(treeText(t)).toContain('Loading saved safe area'); expect(t.root.findAllByType(TextInput)).toHaveLength(0);
+ expect(api.getLiveLocation).not.toHaveBeenCalled(); expect(treeText(t)).toContain('Loading saved safe area'); expect(t.root.findAllByType(TextInput)).toHaveLength(0);
  await act(async () => zone.resolve({ lat: 10, lon: 76, radiusM: 200 }));
- expect(t.root.findAllByType(TextInput).map(i => i.props.value)).toEqual(['10','76','200']);
+ expect(t.root.findAllByType(TextInput).map(i => i.props.value)).toEqual(['','10','76','200']);
 });
 test('failed zone read blocks saving rather than silently overwriting existing area', async () => {
  api.getZone.mockRejectedValue(new Error('timeout'));
  await act(async () => { t=renderer.create(<LocationSharingSection />); }); await flush(); await press(t,'Set safe area'); await flush();
  expect(treeText(t)).toContain('Could not read the saved safe area'); expect(t.root.findAllByType(TextInput)).toHaveLength(0); expect(api.setZone).not.toHaveBeenCalled();
 });
-test('only live location fills an absent safe area', async () => {
+test('even live patient position does not silently prefill provider map area', async () => {
  api.getZone.mockResolvedValue(null);
  await act(async () => { t=renderer.create(<LocationSharingSection />); }); await flush(); await press(t,'Set safe area'); await flush();
- expect(t.root.findAllByType(TextInput).map(i => i.props.value)).toEqual(['11.00000','77.00000','300']);
+ expect(t.root.findAllByType(TextInput).map(i => i.props.value)).toEqual(['','','','300']);
 });
 test('stale location never fills safe-area coordinates', async () => {
  api.getZone.mockResolvedValue(null); api.getLiveLocation.mockResolvedValue({ status: 'stale' });
  await act(async () => { t=renderer.create(<LocationSharingSection />); }); await flush(); await press(t,'Set safe area'); await flush();
- expect(t.root.findAllByType(TextInput).map(i => i.props.value)).toEqual(['','','300']);
+ expect(t.root.findAllByType(TextInput).map(i => i.props.value)).toEqual(['','','','300']);
 });
 test('save has an in-progress state and confirmed success; no tracker request gates acknowledgement', async () => {
  const save=deferred(); api.setZone.mockReturnValue(save.promise);
  await act(async () => { t=renderer.create(<LocationSharingSection />); }); await flush(); await press(t,'Set safe area'); await flush(); await press(t,'Save');
- expect(treeText(t)).toContain('Saving...'); expect(api.setZone).toHaveBeenCalledWith('p',{ lat:10,lon:76,radiusM:300 });
+ expect(treeText(t)).toContain('Saving...'); expect(api.setZone).toHaveBeenCalledWith('p',{ lat:10,lon:76,radiusM:300,name:'',isHome:false });
  await act(async () => save.resolve({})); expect(treeText(t)).toContain('Safe area saved.');
 });
 test('cancelled late zone read cannot refill a closed form', async () => {

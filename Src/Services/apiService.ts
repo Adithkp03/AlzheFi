@@ -224,6 +224,7 @@ class ApiService {
   async setCaregiverSharing(on: boolean): Promise<void> {
     await this.api.post(`/location/caregiver-sharing/${on ? 'on' : 'off'}`);
   }
+  async mapRequest(patientId:string,payload:any):Promise<any>{return (await this.api.post(`/maps/${patientId}`,payload,{timeout:10000})).data;}
   async getZone(patientId: string): Promise<Types.Zone | null> {
     return (await this.api.get(`/location/zone/${patientId}`, { timeout: CARE_READ_TIMEOUT_MS })).data;
   }

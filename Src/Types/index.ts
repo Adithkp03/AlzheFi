@@ -123,7 +123,7 @@ export type BatteryReading =
   | { status: 'off' | 'unknown' }
   | { status: 'stale'; ageMs: number }
   | { status: 'live'; pct: number; charging: boolean; ageMs: number };
-export interface Zone { lat: number; lon: number; radiusM: number }
+export interface Zone { name?:string;isHome?:boolean;lat: number; lon: number; radiusM: number }
 export type LiveLocation =
   | { status: 'unknown' }
   | { status: 'stale'; ageMs: number }
