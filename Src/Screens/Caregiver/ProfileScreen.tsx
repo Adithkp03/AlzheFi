@@ -107,7 +107,7 @@ const handleLogout = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <TouchableOpacity accessibilityRole="button" onPress={replaySetup,replayFeatures} style={{padding:18,backgroundColor:'#E3F73F',borderRadius:14,marginBottom:16}}><Text style={{fontSize:17,fontWeight:'700',color:'#1F2937'}}>Settings: replay setup guide</Text></TouchableOpacity><TouchableOpacity accessibilityRole="button" onPress={replayFeatures} style={{padding:18,backgroundColor:'#E9EDE5',borderRadius:14,marginBottom:16}}><Text style={{fontSize:17,fontWeight:'700',color:'#1F2937'}}>Replay feature walkthrough</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" onPress={replaySetup} style={{padding:18,backgroundColor:'#E3F73F',borderRadius:14,marginBottom:16}}><Text style={{fontSize:17,fontWeight:'700',color:'#1F2937'}}>Settings: replay setup guide</Text></TouchableOpacity><TouchableOpacity accessibilityRole="button" onPress={replayFeatures} style={{padding:18,backgroundColor:'#E9EDE5',borderRadius:14,marginBottom:16}}><Text style={{fontSize:17,fontWeight:'700',color:'#1F2937'}}>Replay feature walkthrough</Text></TouchableOpacity>
 
         {/* PROFILE CARD */}
         <View style={styles.profileCard}>

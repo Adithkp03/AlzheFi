@@ -12,4 +12,4 @@ Map: optional pereditorGeoapifydisclosure,no livepatientmarker,no patient-positi
 
 Boundaryrepeat10min policy pendinguserchoices,not implemented orenabled. Existing two-accurate-fix/60s exit confirmation unchanged.
 
-Verification:114appfocusedtests,200backendtests atcheckpoint. PreexistingApp.test.tsx and unrelatedTypeScripterrors remainexcluded/documented. Browser previews useactualcomponents with syntheticadapters,not native/deviceproof.
+Verification:115appfocusedtests,200backendtests atcheckpoint. PreexistingApp.test.tsx and unrelatedTypeScripterrors remainexcluded/documented. Browser previews useactualcomponents with syntheticadapters,not native/deviceproof.
