@@ -1,6 +1,8 @@
+import {receiveLocationHealthAlert,clearLocationHealthAlerts} from './locationHealthAlerts';
 import {receiveMedicationFollowup,clearMedicationFollowups} from './medicationFollowups';
 import {clearMedicationReminders,refreshOwnMedication} from './medicationReminders';
-import { PermissionsAndroid, Platform, AppState } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PermissionsAndroid, Platform, AppState,NativeModules } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import notifee, { AndroidImportance, AndroidForegroundServiceType } from '@notifee/react-native';
 import { getMessaging, getToken, deleteToken, onMessage, onTokenRefresh, onNotificationOpenedApp, getInitialNotification } from '@react-native-firebase/messaging';
@@ -48,6 +50,7 @@ const deps: SessionDeps = {
     const perm = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
     if (perm !== PermissionsAndroid.RESULTS.GRANTED) throw new Error('location permission denied');
     if (Platform.OS === 'android' && Platform.Version >= 33) await PermissionsAndroid.request('android.permission.POST_NOTIFICATIONS' as any);
+    if(Platform.OS==='android'&&NativeModules.LocationTracking){const before=await AsyncStorage.getItem('user');const user=JSON.parse(before??'null');const token=await AsyncStorage.getItem('userToken');if(!user||!token)throw Error('Signed-in session unavailable');await NativeModules.LocationTracking.start(String(user.id??user._id),user.role,token);if(before!==await AsyncStorage.getItem('user')){await NativeModules.LocationTracking.stop();throw Error('Account changed');}return;}
     registerFgService();
     await notifee.createChannel({ id: CHANNEL, name: 'Location sharing', importance: AndroidImportance.LOW });
     await notifee.displayNotification({
@@ -57,10 +60,13 @@ const deps: SessionDeps = {
     });
   },
   async stopForeground() {
+    if(NativeModules.LocationTracking)await NativeModules.LocationTracking.stop();
     fgResolve?.(); fgResolve = null;
     try { await notifee.stopForegroundService(); await notifee.cancelNotification('loc-fg'); } catch { /* ignore */ }
   },
+  async nativeHealth(){if(Platform.OS==='android'&&NativeModules.LocationTracking)return await NativeModules.LocationTracking.status();return null;},
   async watch(onFix, onError) {
+    if(Platform.OS==='android'&&NativeModules.LocationTracking)return ()=>{NativeModules.LocationTracking.stop().catch(()=>{});};
     const perm = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
     if (perm !== PermissionsAndroid.RESULTS.GRANTED) throw new Error('location permission denied');
     Geolocation.setRNConfiguration({ skipPermissionRequests: true, authorizationLevel: 'whenInUse', locationProvider: 'playServices' });
@@ -91,7 +97,7 @@ export const batteryReporter = new BatteryReporter({
 
 AppState.addEventListener('change', st => { if (st === 'active') { if(locationSession.ownerRole==='patient'&&locationSession.owner)refreshOwnMedication(locationSession.owner).catch(()=>{}); locationSession.refreshCapture({ auto: true }).catch(() => {}); batteryReporter.reconcile().catch(() => {}); } });
 
-apiService.beforeLogout = async () => { clearPendingMedicationAlert();await clearMedicationFollowups().catch(()=>{}); await clearMedicationReminders().catch(()=>{}); await cancelTestAlert().catch(()=>{}); batteryReporter.teardown(); await locationSession.teardown(); };
+apiService.beforeLogout = async () => { await clearLocationHealthAlerts().catch(()=>{}); clearPendingMedicationAlert();await clearMedicationFollowups().catch(()=>{}); await clearMedicationReminders().catch(()=>{}); await cancelTestAlert().catch(()=>{}); batteryReporter.teardown(); await locationSession.teardown(); };
 
 const ALERT_CHANNEL = 'location-alerts';
 
@@ -102,6 +108,7 @@ function handleTap(data: any) {
     if (locationSession.owner && locationSession.ownerRole === 'patient') { openProfileForRequest(); careLinkEvents.emit(); }
     return;
   }
+  if(data?.kind==='location_unavailable')data={...data,kind:'patient_left_zone'};
   if (pushFocus.record(locationSession.owner, locationSession.ownerRole, data)) openPatientsForPendingAlert();
 }
 
@@ -119,6 +126,7 @@ export function startPushListeners(): () => void {
     subs.push(onMessage(m, async msg => {
       if (!locationSession.owner) return;
       const d: any = msg.data ?? {};
+      if(d.kind==='location_unavailable'){await receiveLocationHealthAlert(d);return;}
       if(d.kind==='medication_followup'){await receiveMedicationFollowup(d);return;}
       if(d.kind==='boundary_test'){await receiveBoundaryTest(d);return;}
       if (d.kind === 'patient_left_zone' && d.eventId) { await receiveBoundaryAlert(d); return; }

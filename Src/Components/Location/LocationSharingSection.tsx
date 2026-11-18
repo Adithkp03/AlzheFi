@@ -55,7 +55,7 @@ export default function LocationSharingSection() {
     locationSession.ensurePushRegistered().catch(() => {});
     batteryReporter.reconcile().catch(() => {});
     // Reconcile the phone's tracker with the server's consent state (starts only with an active grant, stops when revoked).
-    locationSession.refreshCapture({ auto: true }).catch(() => {});
+    locationSession.refreshCapture({ auto: true }).then(()=>locationSession.refreshNativeHealth()).catch(() => {});
   }, []);
   useEffect(() => {
     load();
@@ -131,6 +131,8 @@ export default function LocationSharingSection() {
           <>
             <Text style={s.note}>Turn this on for a caregiver you trust. It stays on until you turn it off. They are told when you leave the safe area their primary caregiver set, and you are told when a caregiver who also shares is nearby.</Text>
             <Text style={s.muted} testID="tracking-status">{locationSession.statusLine()}</Text>
+            <TouchableOpacity style={s.btn} disabled={busy} onPress={()=>act(()=>locationSession.restartCapture(),'Could not restart tracking.')}><Text style={s.btnText}>Check consent and restart tracking on this phone</Text></TouchableOpacity>
+            <Text style={s.muted}>After a phone restart,tap the reminder and open AlzheFi to resume. Android Stop/force-stop is respected; continuous tracking is not guaranteed.</Text>
             {st.caregivers.length === 0 && <Text style={s.muted}>No caregivers are linked to your account.</Text>}
             {st.caregivers.map(c => (
               <View key={c.caregiverId} style={s.row}>

@@ -19,7 +19,7 @@ function mk(grant = true) {
   } as any;
   return { d, log, tick: (ms: number) => { clock += ms; }, emit: (f: Fix) => emit?.(f), setToken: (t: string) => { token = t; }, hasWatch: () => emit !== null };
 }
-const F = (lat: number): Fix => ({ lat, lon: 0, accuracyM: 5, recordedAt: 0 });
+const F = (lat: number): Fix => ({ lat, lon: 0, accuracyM: 5, recordedAt: 1_000_000 });
 const flush = () => new Promise<void>(r => setImmediate(() => r()));
 
 test('patient with a grant starts capture; caregiver captures only while their own switch is on', async () => {
@@ -177,4 +177,21 @@ test('late initial push registration after signout is undone', async () => {
  const s=new LocationSession(p.d); const start=s.setOwner('cg','caregiver'); await flush();
  await s.setOwner(null,null); done(); await start;
  expect(s.owner).toBeNull(); expect(p.log).toContain('unreg:tok-A');
+});
+
+
+test('health distinguishes silent watch from a successful old send and flags cached device timestamps', async () => {
+ const p=mk();const s=new LocationSession(p.d);await s.setOwner('pat','patient');
+ p.emit({...F(1),recordedAt:1_000_000});await flush();p.tick(61_000);
+ expect(s.statusLine()).toContain('No new GPS callback for 61s');
+ p.tick(70_000);p.emit(F(2));await flush();expect(s.statusLine()).toContain('old or future-dated');
+});
+test('late send success or failure cannot overwrite the next account health', async () => {
+ for(const failure of [false,true]){
+  const p=mk();let release!:(v?:unknown)=>void;
+  p.d.sendFix=()=>new Promise<void>((resolve,reject)=>{release=failure?reject:()=>resolve();});
+  const s=new LocationSession(p.d);await s.setOwner('pat','patient');p.emit(F(1));await flush();
+  await s.setOwner('new','caregiver');release(Error('offline'));await flush();
+  expect(s.lastUploadAt).toBeNull();expect(s.lastUploadError).toBeNull();expect(s.lastFixRecordedAt).toBeNull();
+ }
 });

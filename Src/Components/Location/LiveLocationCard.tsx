@@ -20,6 +20,7 @@ function ago(ms: number) {
  */
 export default function LiveLocationCard({ patientId, zoneVersion = 0 }: { patientId: string; zoneVersion?: number }) {
   const [loc, setLoc] = useState<LiveLocation | null>(null);
+  const [health,setHealth]=useState<any>(null);
   const [boundary, setBoundary] = useState<any>(null);
   const [err, setErr] = useState(false);
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
@@ -37,10 +38,11 @@ export default function LiveLocationCard({ patientId, zoneVersion = 0 }: { patie
       try {
         const r = await apiService.getLiveLocation(patientId);
         if (!active) return;
-        setLoc(r); setErr(false); setFetchedAt(Date.now());
+        setLoc(r); setErr(false);
+        try { const h=await apiService.getLocationHealth(patientId);if(active)setHealth(h); }catch{if(active)setHealth(null);} setFetchedAt(Date.now());
         try { const b = await apiService.getBoundaryDiagnostic(patientId); if (active) setBoundary(b); }
         catch { if (active) setBoundary(null); }
-      } catch { if (active) { setErr(true); setLoc(null); setBoundary(null); } }  // never keep an old position on error
+      } catch { if (active) { setErr(true); setLoc(null); setBoundary(null);setHealth(null); } }  // never keep an old position on error
       finally { inFlight = false; }
     };
     tick();
@@ -52,7 +54,7 @@ export default function LiveLocationCard({ patientId, zoneVersion = 0 }: { patie
     <View style={s.card}>
       <Text style={s.title}>Live location</Text>
       {err && <Text style={s.stale}>Cannot reach the server. No position is shown.</Text>}
-      {!err && loc?.status === 'live' && (
+      {!err && loc?.status === 'live' && health?.status!=='unavailable' && (
         <>
           <Text style={s.live}>Updated {ago(loc.ageMs)}</Text>
           <Radar loc={loc} zone={zone} />
@@ -66,10 +68,11 @@ export default function LiveLocationCard({ patientId, zoneVersion = 0 }: { patie
           </TouchableOpacity>
         </>
       )}
-      {!err && loc?.status === 'stale' && <Text style={s.stale}>Stale: last update was {ago(loc.ageMs)}. The position is hidden because it may be out of date.</Text>}
+      {!err && loc?.status === 'stale' && health?.status!=='unavailable' && <Text style={s.stale}>Stale: last update was {ago(loc.ageMs)}. The position is hidden because it may be out of date.</Text>}
       {!err && loc?.status === 'unknown' && <Text style={s.muted}>No location received yet.</Text>}
       {!err && !loc && <Text style={s.muted}>Checking...</Text>}
-      {boundary && <Text testID="boundary-status" style={s.muted}>
+      {!err && health && <Text testID="location-health" style={health.status==='unavailable'?s.stale:s.muted}>{health.status==='unavailable' ? (health.lastFreshAt?`Location unavailable. Last fresh update: ${new Date(health.lastFreshAt).toLocaleString()}.`:'Location unavailable. No fresh update received since sharing started.') : health.status==='waiting'?'Waiting for the first fresh location.':'Location updates are being received.'} Warning threshold: 2 minutes. {health.schedulerActive?'Checks target every minute; delivery can be delayed.':'Automatic warning checker is not verified active.'}</Text>}
+      {boundary && health?.status!=='unavailable' && <Text testID="boundary-status" style={s.muted}>
         {boundary.position === 'unknown' ? 'Alert check: position is uncertain or not recent enough. No confirmed exit.'
           : boundary.position === 'inside' ? 'Alert check: inside the safe area.'
           : !boundary.armed ? 'Alert check: this exit was already confirmed. Re-entry is needed before another exit alert.'

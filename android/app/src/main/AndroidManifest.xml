@@ -2,6 +2,7 @@
 
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
@@ -23,6 +24,8 @@
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="${usesCleartextTraffic}"
       android:supportsRtl="true">
+      <service android:name=".LocationTrackingService" android:exported="false" android:foregroundServiceType="location" android:stopWithTask="false" />
+      <receiver android:name=".TrackingBootReceiver" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter></receiver>
       <service android:name="app.notifee.core.ForegroundService" android:foregroundServiceType="location" tools:replace="android:foregroundServiceType" />
       <activity android:name=".BoundaryAlertTestActivity" android:exported="false" android:excludeFromRecents="true" android:launchMode="singleTop" />
       <activity android:name=".BoundaryAlertActivity" android:exported="false" android:excludeFromRecents="true" android:launchMode="singleTop" />

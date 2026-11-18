@@ -25,6 +25,7 @@ export interface SessionDeps {
   stopForeground(): Promise<void>;
   /** patient: at least one active per-caregiver grant. caregiver: own explicit 'share my location for nearby alerts' switch is on. */
   shouldCapture(role: 'patient' | 'caregiver'): Promise<boolean>;
+  nativeHealth?():Promise<{running:boolean;issue:string}|null>;
   now(): number;
 }
 
@@ -47,8 +48,12 @@ export class LocationSession {
   get ownerRole() { return this.role; }
   lastError: string | null = null;
   /** Evidence for testing, no coordinates: when the phone last got a GPS fix, last upload result, last OS watch error. */
-  lastFixAt: number | null = null; lastUploadAt: number | null = null; lastUploadError: string | null = null; lastWatchError: string | null = null;
+  lastFixAt: number | null = null; lastFixRecordedAt: number | null = null; lastUploadAt: number | null = null; lastUploadError: string | null = null; lastWatchError: string | null = null;
+  private nativeHealthLine:string|null=null;
+  async refreshNativeHealth(){const g=this.gen;const h=await this.d.nativeHealth?.().catch(()=>null);if(g===this.gen)this.nativeHealthLine=h?.issue??null;}
+  async restartCapture(){await this.stopCapture();this.nativeHealthLine=null;this.lastError=null;await this.refreshCapture();}
   statusLine(): string {
+    if(this.nativeHealthLine)return this.nativeHealthLine;
     if (!this.stopWatch) {
       if (this.lastError) return this.lastError;
       if (this.lastCheckError) return this.lastCheckError;
@@ -61,6 +66,8 @@ export class LocationSession {
     if (!this.lastFixAt && this.startedAt !== null && this.d.now() - this.startedAt >= NO_FIX_NOTICE_MS)
       return `Still no GPS fix after ${Math.round((this.d.now() - this.startedAt) / 1000)}s. Check that Location is on for this phone and try near a window or outdoors.`;
     if (!this.lastFixAt) return 'Tracking started. Waiting for the first GPS fix.';
+    if (this.d.now() - this.lastFixAt >= NO_FIX_NOTICE_MS) return `No new GPS callback for ${Math.round((this.d.now() - this.lastFixAt) / 1000)}s. Last successful send: ${ago(this.lastUploadAt) ?? 'none'}. Tracking may be interrupted.`;
+    if (this.lastFixRecordedAt !== null && (this.d.now() - this.lastFixRecordedAt > 120_000 || this.lastFixRecordedAt > this.d.now() + 30_000)) return 'The phone returned an old or future-dated location. This is not a fresh location update.';
     if (this.lastUploadError) return `GPS fix ${ago(this.lastFixAt)}, but sending failed (${this.lastUploadError}).`;
     return this.lastUploadAt ? `GPS fix ${ago(this.lastFixAt)}. Last sent ${ago(this.lastUploadAt)}.` : `GPS fix ${ago(this.lastFixAt)}. Not sent yet.`;
   }
@@ -72,8 +79,8 @@ export class LocationSession {
     await this.teardown();
     const g = ++this.gen;
     this.ownerId = userId; this.role = role;
-    this.lastError = null; this.lastCheckError = null; this.lastWatchError = null; this.lastWant = null;
-    this.lastFixAt = null; this.lastUploadAt = null; this.lastUploadError = null; this.startedAt = null;
+    this.nativeHealthLine=null;this.lastError = null; this.lastCheckError = null; this.lastWatchError = null; this.lastWant = null;
+    this.lastFixAt = null; this.lastFixRecordedAt = null; this.lastUploadAt = null; this.lastUploadError = null; this.startedAt = null;
     if (!userId) return;
     await this.ensurePushRegistered();
     if (role) await this.refreshCapture();
@@ -133,6 +140,7 @@ export class LocationSession {
     catch { if (g === this.gen) this.lastCheckError = 'Could not check sharing status. Will try again.'; return; }
     if (g !== this.gen || owner !== this.ownerId) return;   // signed out or switched while asking: never start for the old owner
     this.lastWant = want;
+    await this.refreshNativeHealth();
     if (want && !this.stopWatch) {
       this.lastError = null; this.lastWatchError = null;
       try {
@@ -154,11 +162,12 @@ export class LocationSession {
   private async onFix(g: number, f: Fix) {
     if (g !== this.gen || !this.ownerId) return;           // fix from a previous owner is dropped
     const t = this.d.now();
-    this.lastFixAt = t;
+    this.lastFixAt = t; this.lastFixRecordedAt = f.recordedAt; this.lastWatchError = null;
+    const owner = this.ownerId;
     if (t - this.lastUpload < MIN_UPLOAD_GAP_MS) return;
     this.lastUpload = t;
-    try { await this.d.sendFix(f); this.lastUploadAt = t; this.lastUploadError = null; }
-    catch (e: any) { this.lastUploadError = e?.response?.status ? `HTTP ${e.response.status}` : 'no network or server'; }   // next fix retries; server shows stale meanwhile
+    try { await this.d.sendFix(f); if (g !== this.gen || owner !== this.ownerId) return; this.lastUploadAt = this.d.now(); this.lastUploadError = null; }
+    catch (e: any) { if (g !== this.gen || owner !== this.ownerId) return; this.lastUploadError = e?.response?.status ? `HTTP ${e.response.status}` : 'no network or server'; }   // next fix retries; server shows stale meanwhile
   }
 
   private async stopCapture() {

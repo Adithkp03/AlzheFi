@@ -27,6 +27,6 @@ class BoundaryAlertModule(private val context: ReactApplicationContext) : ReactC
   }
 }
 class BoundaryAlertPackage : ReactPackage {
-  override fun createNativeModules(context: ReactApplicationContext): List<NativeModule> = listOf(BoundaryAlertModule(context))
+  override fun createNativeModules(context: ReactApplicationContext): List<NativeModule> = listOf(BoundaryAlertModule(context), LocationTrackingModule(context))
   override fun createViewManagers(context: ReactApplicationContext): List<ViewManager<*, *>> = emptyList()
 }

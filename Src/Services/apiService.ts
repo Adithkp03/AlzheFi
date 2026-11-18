@@ -13,7 +13,7 @@ const API_BASE_URL = Platform.select({
 // This APK targets the isolated care test host. Legacy reminder routes remain disabled.
 export const LOCATION_TEST_BUILD = API_BASE_URL?.includes('alzhefi-location-test.vercel.app') ?? false;
 export const CARE_READ_TIMEOUT_MS = 12000;
-export const CARE_BUILD_LABEL = 'Care test v10';
+export const CARE_BUILD_LABEL = 'Care test v11';
 
 // Fixed categories only. Never render server error bodies, URLs, user ids or tokens.
 export function careReadFailure(error: any): string {
@@ -234,6 +234,8 @@ class ApiService {
   async confirmBoundaryTest(id:string):Promise<any>{return (await this.api.post(`/location/diagnostics/boundary-test/${id}/confirm`,{},{timeout:20000})).data;}
   async readBoundaryTest(id:string):Promise<any>{return (await this.api.get(`/location/diagnostics/boundary-test/${id}`,{timeout:12000})).data;}
   async ackBoundaryTest(id:string):Promise<any>{return (await this.api.post(`/location/diagnostics/boundary-test/${id}/received`,{},{timeout:12000})).data;}
+  async getLocationHealth(patientId:string):Promise<any>{return (await this.api.get(`/location-health/${patientId}`,{timeout:CARE_READ_TIMEOUT_MS})).data;}
+  async getLocationHealthEvent(id:string):Promise<any>{return (await this.api.get(`/location-health/events/${id}`,{timeout:CARE_READ_TIMEOUT_MS})).data;}
   async getBoundaryAlert(eventId: string): Promise<any> { return (await this.api.get(`/location/alerts/${eventId}`, { timeout: CARE_READ_TIMEOUT_MS })).data; }
   async getBoundaryDiagnostic(patientId: string): Promise<any> {
     return (await this.api.get(`/location/diagnostics/boundary/${patientId}`, { timeout: CARE_READ_TIMEOUT_MS })).data;
@@ -245,10 +247,10 @@ class ApiService {
     await this.api.post('/location/fix', fix);
   }
   async removeDeviceToken(token: string): Promise<void> {
-    await this.api.post('/location/device-token/remove', { token, boundaryAlertV1: true });
+    await this.api.post('/location/device-token/remove', { token, boundaryAlertV1: true,locationHealthV1:true });
   }
   async registerDeviceToken(token: string): Promise<void> {
-    await this.api.post('/location/device-token', { token, boundaryAlertV1: true });
+    await this.api.post('/location/device-token', { token, boundaryAlertV1: true,locationHealthV1:true });
   }
 
   async getPatientProfile(patientId: string): Promise<Types.PatientProfile> {
