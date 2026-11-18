@@ -28,8 +28,8 @@ Patient last GPS callback age,device fix timestamp/accuracy,last successful uplo
 10. Revoke patient sharing while caregiver is watching. No further coordinates,health alerts or boundary repeats to that caregiver. Re-enable only explicitly;new consent must not replay old episodes.
 11. Log out/switch account. No previous-owner GPS callbacks/uploads/alerts may be attributed to the new account.
 
-## Not yet implemented/verified at checklist creation
-Native-owned durable location/upload pipeline,process-death/boot recovery,server unavailable-alert endpoint/timer,repeat-alert Stop action and final repeat policies. Existing synthetic diagnostic confirms neither real GPS nor these cases.
+## Current implementation and verification limits
+v11 source adds native-owned capture/upload,encrypted session storage,permitted sticky recreation,a reboot tap-to-resume notice,and a server unavailable-alert module. Native compilation and device survival have not yet been verified. Server source is in a separate review branch,not activated;timer creation is not sweep proof. Repeat-alert Stop action and final repeat policies are still pending. Existing synthetic diagnostic confirms neither real GPS nor these cases.
 
 ## Completion evidence
 Keep a short timestamped table per stage. Report observed gaps and recovery,not just 'passed'. Start an extended battery/use-duration trial only after short consent,screen-off,network and account-isolation checks pass. No emergency-monitor or delivery guarantee.
