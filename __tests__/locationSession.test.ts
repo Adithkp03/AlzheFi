@@ -195,3 +195,9 @@ test('late send success or failure cannot overwrite the next account health', as
   expect(s.lastUploadAt).toBeNull();expect(s.lastUploadError).toBeNull();expect(s.lastFixRecordedAt).toBeNull();
  }
 });
+
+test('native health status is authoritative,account-fenced,and explicit restart rechecks consent',async()=>{
+ const p=mk();p.d.nativeHealth=async()=>({running:false,issue:'Native tracking needs restart.'});
+ const s=new LocationSession(p.d);await s.setOwner('pat','patient');await s.refreshNativeHealth();expect(s.statusLine()).toContain('Native tracking needs restart');
+ p.d.shouldCapture=async()=>false;await s.restartCapture();expect(s.capturing).toBe(false);expect(p.log).toContain('unwatch');
+});
