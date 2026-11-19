@@ -87,3 +87,44 @@ export interface LinkPatientRequest {
 export interface PatientProfile extends User {
   linkedCaregiverIds?: string[];
 }
+
+export type CareLinkRole = 'primary' | 'secondary';
+export type CareLinkStatus = 'pending' | 'active';
+
+/** Patient view of a caregiver request or active caregiver. Names only, no email. */
+export interface IncomingCareLink {
+  id: string;
+  caregiverName: string;
+  role: CareLinkRole;
+  status: CareLinkStatus;
+  legacy: boolean;
+}
+
+/** Caregiver view of their own request or link. */
+export interface OutgoingCareLink {
+  id: string;
+  role: CareLinkRole;
+  status: CareLinkStatus;
+}
+
+// ---------- Location sharing (feature is off on the server unless enabled) ----------
+export interface PatientSharingStatus {
+  role: 'patient';
+  caregivers: { caregiverId: string; caregiverName: string; role: CareLinkRole; sharing: boolean }[];
+  batteryOn?: boolean;
+}
+export interface CaregiverSharingStatus {
+  role: 'caregiver';
+  mySharing: boolean;
+  patients: { patientId: string; patientName: string; role: CareLinkRole; patientSharing: boolean; canSetBoundary: boolean; batteryShared?: boolean }[];
+}
+export type SharingStatus = PatientSharingStatus | CaregiverSharingStatus;
+export type BatteryReading =
+  | { status: 'off' | 'unknown' }
+  | { status: 'stale'; ageMs: number }
+  | { status: 'live'; pct: number; charging: boolean; ageMs: number };
+export interface Zone { name?:string;isHome?:boolean;lat: number; lon: number; radiusM: number }
+export type LiveLocation =
+  | { status: 'unknown' }
+  | { status: 'stale'; ageMs: number }
+  | { status: 'live'; lat: number; lon: number; accuracyM: number; recordedAt: number; ageMs: number };

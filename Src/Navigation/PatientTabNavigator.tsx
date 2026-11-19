@@ -12,7 +12,7 @@ import Feather from 'react-native-vector-icons/Feather';
 // Screens
 import ChatScreen from '../Screens/Patient/ChatScreen';
 import MemoriesScreen from '../Screens/Patient/MemoriesScreen';
-import RemindersScreen from '../Screens/Patient/ReminderScreen';
+import RemindersScreen from '../Screens/Shared/MedicationScreen';
 import DialScreen from '../Screens/Patient/DialScreen';
 import ProfileScreen from '../Screens/Patient/ProfileScreen';
 

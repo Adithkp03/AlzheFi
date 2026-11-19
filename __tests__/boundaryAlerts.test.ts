@@ -1,0 +1,25 @@
+jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
+jest.mock('@notifee/react-native', () => ({ __esModule:true,default:{createChannel:jest.fn(async()=>{}),displayNotification:jest.fn(async()=>{})},AndroidImportance:{HIGH:4},AndroidVisibility:{PRIVATE:0} }));
+jest.mock('../Src/Services/apiService',()=>({apiService:{getBoundaryAlert:jest.fn()}}));
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState, NativeModules } from 'react-native';
+import notifee from '@notifee/react-native';
+import { apiService } from '../Src/Services/apiService';
+import { receiveBoundaryAlert,boundaryAlerts } from '../Src/Services/boundaryAlerts';
+let n=0;
+const owner='aaaaaaaaaaaaaaaaaaaaaaaa',patient='bbbbbbbbbbbbbbbbbbbbbbbb';
+let data:any,event:any;
+beforeEach(async()=>{jest.clearAllMocks();data={kind:'patient_left_zone',eventId:(++n).toString(16).padStart(24,'0'),recipientId:owner};event={eventId:data.eventId,recipientId:owner,patientId:patient,occurredAt:Date.now()};await AsyncStorage.setItem('user',JSON.stringify({id:owner,role:'caregiver'}));await AsyncStorage.setItem(`fullScreenBoundary:${owner}`,'enabled');(apiService.getBoundaryAlert as jest.Mock).mockResolvedValue(event);Object.defineProperty(AppState,'currentState',{value:'active',configurable:true});NativeModules.BoundaryAlertAccess={status:jest.fn(async()=>true)};});
+test('foreground emits full-screen event and keeps notification fallback',async()=>{const listener=jest.fn(),un=boundaryAlerts.subscribe(listener);expect(await receiveBoundaryAlert(data)).toBe(true);expect(listener).toHaveBeenCalledWith(event);expect(notifee.displayNotification).toHaveBeenCalledWith(expect.objectContaining({android:expect.not.objectContaining({fullScreenAction:expect.anything()})}));un();});
+test('background with special access requests supported full-screen activity',async()=>{Object.defineProperty(AppState,'currentState',{value:'background'});await receiveBoundaryAlert(data);expect(notifee.displayNotification).toHaveBeenCalledWith(expect.objectContaining({android:expect.objectContaining({fullScreenAction:{id:'boundary',launchActivity:'com.alzhefi.BoundaryAlertActivity'}})}));});
+test('denied access falls back to normal notification',async()=>{Object.defineProperty(AppState,'currentState',{value:'background'});NativeModules.BoundaryAlertAccess.status.mockResolvedValue(false);await receiveBoundaryAlert(data);expect((notifee.displayNotification as jest.Mock).mock.calls[0][0].android.fullScreenAction).toBeUndefined();});
+test('revoked authority or server failure shows nothing',async()=>{(apiService.getBoundaryAlert as jest.Mock).mockRejectedValue({response:{status:403}});expect(await receiveBoundaryAlert(data)).toBe(false);expect(notifee.displayNotification).not.toHaveBeenCalled();});
+test('wrong account and patient role show nothing',async()=>{await AsyncStorage.setItem('user',JSON.stringify({id:owner,role:'patient'}));expect(await receiveBoundaryAlert(data)).toBe(false);await AsyncStorage.setItem('user',JSON.stringify({id:'cccccccccccccccccccccccc',role:'caregiver'}));expect(await receiveBoundaryAlert(data)).toBe(false);expect(apiService.getBoundaryAlert).not.toHaveBeenCalled();});
+test('account change during verification drops the result',async()=>{(apiService.getBoundaryAlert as jest.Mock).mockImplementation(async()=>{await AsyncStorage.removeItem('user');return event});expect(await receiveBoundaryAlert(data)).toBe(false);expect(notifee.displayNotification).not.toHaveBeenCalled();});
+test('stale event is not displayed',async()=>{event.occurredAt=Date.now()-300001;expect(await receiveBoundaryAlert(data)).toBe(false);expect(notifee.displayNotification).not.toHaveBeenCalled();});
+test('same event cannot repeatedly take over the screen',async()=>{await receiveBoundaryAlert(data);await receiveBoundaryAlert(data);expect(notifee.displayNotification).toHaveBeenCalledTimes(1);});
+
+test('special OS access alone does not opt caregiver into locked-screen takeover',async()=>{await AsyncStorage.removeItem(`fullScreenBoundary:${owner}`);Object.defineProperty(AppState,'currentState',{value:'background'});await receiveBoundaryAlert(data);expect((notifee.displayNotification as jest.Mock).mock.calls[0][0].android.fullScreenAction).toBeUndefined();});
+
+test('platform full-screen rejection retries as an ordinary notification',async()=>{Object.defineProperty(AppState,'currentState',{value:'background'});(notifee.displayNotification as jest.Mock).mockRejectedValueOnce(new Error('access changed'));await receiveBoundaryAlert(data);expect(notifee.displayNotification).toHaveBeenCalledTimes(2);expect((notifee.displayNotification as jest.Mock).mock.calls[1][0].android.fullScreenAction).toBeUndefined();});
+test('invalid event time is not displayed',async()=>{event.occurredAt=undefined;expect(await receiveBoundaryAlert(data)).toBe(false);expect(notifee.displayNotification).not.toHaveBeenCalled();});

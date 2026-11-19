@@ -82,8 +82,8 @@ android {
         applicationId "com.alzhefi"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 12
+        versionName "1.0-test12"
     }
     signingConfigs {
         debug {
@@ -117,3 +117,6 @@ dependencies {
         implementation jscFlavor
     }
 }
+
+// Push needs google-services.json (not committed). Without it the app still builds; push is simply unavailable.
+if (file("google-services.json").exists()) { apply plugin: "com.google.gms.google-services" }

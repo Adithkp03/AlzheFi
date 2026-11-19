@@ -1,3 +1,4 @@
+import {replaySetup,replayFeatures} from '../../Components/SetupWalkthrough';
 import React from 'react';
 import {
   View,
@@ -11,6 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../Context/AuthContext';
+import CaregiverAccessSection from '../../Components/CareLinks/CaregiverAccessSection';
+import LocationSharingSection from '../../Components/Location/LocationSharingSection';
 
 const YELLOW = '#E3F73F';
 const DARK   = '#1F2937';
@@ -65,7 +68,6 @@ export default function ProfileScreen() {
       items: [
         { id: 'name', icon: 'account', iconColor: '#93C5FD', label: 'Name', value: user?.name || 'N/A', hasArrow: true },
         { id: 'email', icon: 'email-outline', iconColor: '#86EFAC', label: 'Email', value: user?.email || 'N/A', hasArrow: true },
-        { id: 'caregiver', icon: 'doctor', iconColor: '#F9A8D4', label: 'Caregiver', value: 'Sarah (Wife)', hasArrow: true },
       ],
     },
     
@@ -82,6 +84,7 @@ export default function ProfileScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <TouchableOpacity accessibilityRole="button" onPress={replaySetup} style={{padding:18,backgroundColor:'#E3F73F',borderRadius:14,marginBottom:16}}><Text style={{fontSize:17,fontWeight:'700',color:'#1F2937'}}>Settings: replay setup guide</Text></TouchableOpacity><TouchableOpacity accessibilityRole="button" onPress={replayFeatures} style={{padding:18,backgroundColor:'#E9EDE5',borderRadius:14,marginBottom:16}}><Text style={{fontSize:17,fontWeight:'700',color:'#1F2937'}}>Replay feature walkthrough</Text></TouchableOpacity>
 
         <View style={styles.profileCard}>
           <View style={styles.avatarRing}>
@@ -130,6 +133,9 @@ export default function ProfileScreen() {
             </View>
           </View>
         ))}
+
+        {user?.role !== 'caregiver' && <CaregiverAccessSection />}
+        <LocationSharingSection />
 
         {/* Logout Section (UI unchanged) */}
         <View style={styles.section}>

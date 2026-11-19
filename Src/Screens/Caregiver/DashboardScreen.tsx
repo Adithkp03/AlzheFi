@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // 📦 Imports
 // ─────────────────────────────────────────────────────────────
+import { useAutoRefresh } from '../../Services/useAutoRefresh';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
@@ -20,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../Context/AuthContext';
-import { apiService } from '../../Services/apiService';
+import { apiService, LOCATION_TEST_BUILD } from '../../Services/apiService';
 
 // ─────────────────────────────────────────────────────────────
 // 🎨 Theme Constants
@@ -76,7 +77,7 @@ export default function CaregiverDashboardScreen() {
       const patients = await apiService.getLinkedPatients();
       setActivePatients(patients.length);
 
-      if (patients.length === 0) {
+      if (patients.length === 0 || LOCATION_TEST_BUILD) {
         setPendingTasks(0);
         return;
       }
@@ -115,7 +116,7 @@ export default function CaregiverDashboardScreen() {
     }
   }, []);
 
-  useEffect(() => { fetchStats(); }, [fetchStats]);
+  useAutoRefresh(() => { fetchStats(); });
 
   useFocusEffect(
     useCallback(() => { fetchStats(); }, [fetchStats])
@@ -163,12 +164,12 @@ export default function CaregiverDashboardScreen() {
     setLinkError('');
     setLinkSuccess('');
     try {
-      await apiService.linkPatient(email);
-      setLinkSuccess('Patient linked successfully! 🎉');
+      const notice = await apiService.requestCareLink(email);
+      setLinkSuccess(notice || 'Request sent. The patient must approve it.');
       setLinkEmail('');
       fetchStats();
     } catch (err: any) {
-      const msg = err?.response?.data?.message || 'Could not link patient. Please try again.';
+      const msg = err?.response?.data?.error || err?.response?.data?.message || 'Could not send the request. Please try again.';
       setLinkError(msg);
     } finally {
       setLinkLoading(false);
