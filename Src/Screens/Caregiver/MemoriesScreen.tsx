@@ -1,3 +1,4 @@
+import { useAutoRefresh } from '../../Services/useAutoRefresh';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -532,19 +533,19 @@ export default function MemoriesScreen() {
   const [activeTab,       setActiveTab]       = useState<TabType>('photo');
 
   // ── Load linked patients ──
-  useEffect(() => {
+  useAutoRefresh(() => {
     (async () => {
       try {
         const data = await apiService.getLinkedPatients();
         setPatients(data);
-        if (data.length > 0) setSelectedPatient(data[0]);
+        setSelectedPatient((cur: any) => (cur && data.some((p: any) => p._id === cur._id)) ? cur : (data[0] ?? null));
       } catch (e) {
         console.log('Load patients error:', e);
       } finally {
         setLoadingPatients(false);
       }
     })();
-  }, []);
+  });
 
 
 
@@ -704,7 +705,7 @@ const handleSave = async (
           </View>
           <Text style={styles.emptyTitle}>No patients linked</Text>
           <Text style={styles.emptySubtitle}>
-            Link a patient from your profile to manage their memories
+            Link a patient from the Patients tab to manage their memories
           </Text>
         </View>
       </SafeAreaView>

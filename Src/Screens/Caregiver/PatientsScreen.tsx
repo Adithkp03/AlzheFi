@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useAutoRefresh } from '../../Services/useAutoRefresh';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,7 +12,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../Context/AuthContext';
-import { apiService } from '../../Services/apiService';
+import { apiService, LOCATION_TEST_BUILD, careReadFailure, CARE_BUILD_LABEL } from '../../Services/apiService';
+import LinkPatientModal from '../../Components/CareLinks/LinkPatientModal';
+import LocationSharingSection from '../../Components/Location/LocationSharingSection';
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 const YELLOW = '#E3F73F';
@@ -30,17 +33,18 @@ interface Patient {
 }
 
 interface Event {
-  _id: string;
+  _id?: string;
   title: string;
   description?: string;
   datetime: string;
   importance: 'low' | 'medium' | 'high';
-  userId: string;
+  userId?: string;
 }
 
 interface PatientCardData {
   patient: Patient;
   events: Event[];
+  eventsState: 'loading' | 'ready' | 'error' | 'unavailable';
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -160,6 +164,9 @@ function PatientCard({
         <View style={styles.accentShort} />
       </View>
 
+      {data.eventsState !== 'ready' ? <Text style={{ color: MUTED, padding: 12 }}>
+        {data.eventsState === 'loading' ? 'Loading reminders...' : data.eventsState === 'unavailable' ? 'Reminders are not available on this location test server.' : 'Could not load reminders. Retrying shortly.'}
+      </Text> : <>
       {/* Info grid */}
       <View style={styles.infoGrid}>
         <View style={styles.infoCell}>
@@ -184,6 +191,7 @@ function PatientCard({
           <Text style={styles.noReminderText}>No upcoming reminders</Text>
         </View>
       )}
+      </>}
     </View>
   );
 }
@@ -194,32 +202,45 @@ export default function PatientsScreen() {
 
   const [patientData, setPatientData] = useState<PatientCardData[]>([]);
   const [loading,     setLoading]     = useState(true);
+  const [linkOpen,    setLinkOpen]    = useState(false);
 
-  useEffect(() => {
-    fetchPatients();
-  }, []);
+  const [lastChecked, setLastChecked] = useState<number | null>(null);
+  const [error, setError] = useState('');
+  const inFlight = useRef(false);
+  const generation = useRef(0);
+  useEffect(() => () => { generation.current++; }, []);
+  useAutoRefresh(() => { fetchPatients(); });
 
   const fetchPatients = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    const gen = ++generation.current;
     try {
-      setLoading(true);
-      const patients = await apiService.getLinkedPatients();
-
-      const dataWithEvents = await Promise.all(
-        patients.map(async (p) => {
-          try {
-            const events = await apiService.getPatientEvents(p._id);
-            return { patient: p, events: Array.isArray(events) ? events : [] };
-          } catch {
-            return { patient: p, events: [] };
-          }
-        })
-      );
-
-      setPatientData(dataWithEvents);
-    } catch (e) {
-      console.log('Fetch patients error:', e);
+      const patients = (await apiService.getLinkedPatients()).map(p => ({ ...p, _id: p._id ?? p.id }));
+      if (gen !== generation.current) return;
+      // Show the approved list and mount location controls immediately. Reminders
+      // must never hold the entire screen behind their own network requests.
+      setPatientData(patients.map(patient => ({ patient, events: [], eventsState: LOCATION_TEST_BUILD ? 'unavailable' : 'loading' })));
+      setError(''); setLastChecked(Date.now()); setLoading(false);
+      if (!LOCATION_TEST_BUILD) {
+        await Promise.all(patients.map(async patient => {
+          let events: Event[] = [], eventsState: PatientCardData['eventsState'] = 'ready';
+          try { const r = await apiService.getPatientEvents(patient._id); events = Array.isArray(r) ? r : []; }
+          catch { eventsState = 'error'; }
+          if (gen === generation.current) setPatientData(old => old.map(d => d.patient._id === patient._id ? { ...d, events, eventsState } : d));
+        }));
+      }
+    } catch (e: any) {
+      if (gen === generation.current) {
+        // A failed revalidation is not an empty list. Keep the prior snapshot
+        // only in component memory, but hide all patient details/location and
+        // edits until the server confirms access again. Denials discard it.
+        if (e?.response?.status === 401 || e?.response?.status === 403) { setPatientData([]); setLastChecked(null); }
+        setError(`Could not verify the patient list. ${careReadFailure(e)}. Patient details and location are hidden until a successful check.`);
+      }
     } finally {
-      setLoading(false);
+      inFlight.current = false;
+      if (gen === generation.current) setLoading(false);
     }
   };
 
@@ -235,8 +256,13 @@ export default function PatientsScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerEyebrow}>Caregiver</Text>
+          <Text style={{ color: DARK, fontSize: 12 }}>{CARE_BUILD_LABEL}</Text>
           <Text style={styles.headerTitle}>My Patients</Text>
         </View>
+        <TouchableOpacity style={styles.linkBtn} onPress={() => setLinkOpen(true)} accessibilityLabel="Link a patient">
+          <Icon name="account-plus-outline" size={18} color={DARK} />
+          <Text style={styles.linkBtnText}>Link</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Accent bar */}
@@ -249,17 +275,22 @@ export default function PatientsScreen() {
       <View style={styles.statsRow}>
         <View style={styles.statChip}>
           <Icon name="account-outline" size={14} color={DARK} />
-          <Text style={styles.statChipText}>{patientData.length} Patients</Text>
+          <Text style={styles.statChipText}>{error ? 'Patients unverified' : loading ? 'Checking patients' : `${patientData.length} Patients`}</Text>
         </View>
         <View style={styles.statChip}>
           <Icon name="bell-outline" size={14} color={DARK} />
-          <Text style={styles.statChipText}>{totalToday} Today</Text>
+          <Text style={styles.statChipText}>{LOCATION_TEST_BUILD || error ? 'Reminders unavailable' : `${totalToday} Today`}</Text>
         </View>
       </View>
 
       {loading ? (
         <View style={styles.emptyState}>
           <ActivityIndicator size="large" color={DARK} />
+        </View>
+      ) : error ? (
+        <View style={styles.emptyState}><Text style={[styles.emptySubtitle, { color: DARK }]}>{error}</Text>
+          {!!lastChecked && <Text style={{ color: DARK, textAlign: 'center', padding: 12 }}>Last successful check: {new Date(lastChecked).toLocaleTimeString()}. This is not a confirmed empty list.</Text>}
+          <TouchableOpacity style={{ backgroundColor: YELLOW, paddingVertical: 12, paddingHorizontal: 24, minWidth: 120, alignItems: 'center', borderRadius: 12, marginTop: 16 }} accessibilityRole="button" accessibilityLabel="Retry patients" onPress={() => { fetchPatients(); }}><Text style={{ color: DARK, fontWeight: '700', flexShrink: 0 }}>Retry</Text></TouchableOpacity>
         </View>
       ) : patientData.length === 0 ? (
         <View style={styles.emptyState}>
@@ -268,7 +299,7 @@ export default function PatientsScreen() {
           </View>
           <Text style={styles.emptyTitle}>No patients linked</Text>
           <Text style={styles.emptySubtitle}>
-            Tap Link to connect a patient to your account
+            Tap Link to ask a patient to connect. They approve before you see anything.
           </Text>
         </View>
       ) : (
@@ -279,8 +310,10 @@ export default function PatientsScreen() {
           {patientData.map((d, i) => (
             <PatientCard key={d.patient._id} data={d} index={i} />
           ))}
+          <LocationSharingSection />
         </ScrollView>
       )}
+      <LinkPatientModal visible={linkOpen} onClose={() => setLinkOpen(false)} onChanged={() => fetchPatients()} />
     </SafeAreaView>
   );
 }

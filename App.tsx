@@ -6,8 +6,12 @@ import { AuthProvider, useAuth } from './Src/Context/AuthContext';
 import AuthNavigator from './Src/Navigation/AuthNavigator';
 import AppNavigator from './Src/Navigation/AppNavigator';
 import IntroScreen from './Src/Screens/IntroScreen';
+import { navigationRef, openPatientsForPendingAlert,openMedicationAlert } from './Src/Navigation/navigationRef';
+import { startPushListeners } from './Src/Services/locationNative';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+
+import BoundaryAlertOverlay from './Src/Components/Location/BoundaryAlertOverlay';
 
 const Stack = createNativeStackNavigator();
 
@@ -16,31 +20,37 @@ function RootNavigator() {
   const [appState, setAppState] = useState<
     'loading' | 'intro' | 'auth' | 'app'
   >('loading');
+  // Stays false until the saved session has been restored, so the token effect
+  // below cannot flash the login screen before the restore lands.
+  const bootstrapped = React.useRef(false);
+
+  useEffect(() => startPushListeners(), []);
 
   useEffect(() => {
     initializeApp();
   }, []);
 
   const initializeApp = async () => {
-    await bootstrapAsync();
+    // Decide from bootstrap's own result: state inside this closure is stale.
+    const restored = await bootstrapAsync();
 
     const hasLaunched = await AsyncStorage.getItem('hasLaunched');
 
     if (!hasLaunched) {
       await AsyncStorage.setItem('hasLaunched', 'true');
       setAppState('intro');
+      bootstrapped.current = true;
       return;
     }
 
-    if (state.userToken) {
-      setAppState('app');
-    } else {
-      setAppState('auth');
-    }
+    setAppState(restored.token ? 'app' : 'auth');
+    bootstrapped.current = true;
   };
 
-  // React when token changes (after login)
+  // React when token changes (after login/logout)
 useEffect(() => {
+  if (!bootstrapped.current) return;
+  if (appState === 'intro') return; // the intro owns the screen until finished
   if (state.userToken) {
     setAppState('app');
   } else {
@@ -51,7 +61,7 @@ useEffect(() => {
   if (appState === 'loading') return null;
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef} onReady={()=>{openPatientsForPendingAlert();openMedicationAlert(state.user?.id??null);}} onStateChange={()=>{openPatientsForPendingAlert();openMedicationAlert(state.user?.id??null);}}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
 
         {appState === 'intro' && (
@@ -82,6 +92,7 @@ export default function App() {
   return (
     <AuthProvider>
       <RootNavigator />
+      <BoundaryAlertOverlay />
     </AuthProvider>
   );
 }

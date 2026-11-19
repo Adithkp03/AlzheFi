@@ -13,7 +13,7 @@ import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import DashboardScreen from '../Screens/Caregiver/DashboardScreen';
 import PatientsScreen from '../Screens/Caregiver/PatientsScreen';
 import MemoriesScreen from '../Screens/Caregiver/MemoriesScreen';
-import RemindersScreen from '../Screens/Caregiver/ReminderScreen';
+import RemindersScreen from '../Screens/Shared/MedicationScreen';
 import ProfileScreen from '../Screens/Caregiver/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
