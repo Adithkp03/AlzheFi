@@ -5,6 +5,7 @@ const state:any={user:{id:'cg',role:'caregiver'},userToken:'token'};
 jest.mock('../Src/Context/AuthContext',()=>({useAuth:()=>({state})}));
 jest.mock('../Src/Services/boundaryAlerts',()=>({boundaryAlerts:{subscribe:(fn:any)=>{boundary=fn;return()=>{};}}}));
 jest.mock('../Src/Services/testAlerts',()=>({testAlerts:{subscribe:(fn:any)=>{test=fn;return()=>{};}}}));
+jest.mock('../Src/Services/boundaryRepeatAlerts',()=>({boundaryRepeatAlerts:{subscribe:()=>()=>{}},repeatText:()=>({title:'',body:''}),stopBoundaryRepeat:jest.fn()}));
 jest.mock('../Src/Services/apiService',()=>({apiService:{getBoundaryAlert:jest.fn()}}));
 jest.mock('../Src/Services/pushFocus',()=>({pushFocus:{record:jest.fn()}}));
 jest.mock('../Src/Navigation/navigationRef',()=>({openPatientsForPendingAlert:jest.fn()}));

@@ -238,6 +238,8 @@ class ApiService {
   async getLocationHealth(patientId:string):Promise<any>{return (await this.api.get(`/location-health/${patientId}`,{timeout:CARE_READ_TIMEOUT_MS})).data;}
   async getLocationHealthEvent(id:string):Promise<any>{return (await this.api.get(`/location-health/events/${id}`,{timeout:CARE_READ_TIMEOUT_MS})).data;}
   async getBoundaryAlert(eventId: string): Promise<any> { return (await this.api.get(`/location/alerts/${eventId}`, { timeout: CARE_READ_TIMEOUT_MS })).data; }
+  async getBoundaryRepeatEvent(eventId: string): Promise<any> { return (await this.api.get(`/location/boundary-repeat/events/${eventId}`, { timeout: CARE_READ_TIMEOUT_MS })).data; }
+  async stopBoundaryRepeat(episodeId: string): Promise<any> { return (await this.api.post(`/location/boundary-repeat/${episodeId}/stop`, {}, { timeout: 15000 })).data; }
   async getBoundaryDiagnostic(patientId: string): Promise<any> {
     return (await this.api.get(`/location/diagnostics/boundary/${patientId}`, { timeout: CARE_READ_TIMEOUT_MS })).data;
   }
@@ -248,10 +250,10 @@ class ApiService {
     await this.api.post('/location/fix', fix);
   }
   async removeDeviceToken(token: string): Promise<void> {
-    await this.api.post('/location/device-token/remove', { token, boundaryAlertV1: true,locationHealthV1:true });
+    await this.api.post('/location/device-token/remove', { token, boundaryAlertV1: true,locationHealthV1:true,boundaryRepeatV1:true });
   }
   async registerDeviceToken(token: string): Promise<void> {
-    await this.api.post('/location/device-token', { token, boundaryAlertV1: true,locationHealthV1:true });
+    await this.api.post('/location/device-token', { token, boundaryAlertV1: true,locationHealthV1:true,boundaryRepeatV1:true });
   }
 
   async getPatientProfile(patientId: string): Promise<Types.PatientProfile> {
